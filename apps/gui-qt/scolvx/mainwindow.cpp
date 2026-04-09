@@ -193,6 +193,12 @@ MainWindow::MainWindow() {
 	// -----------------------------------------------------------------------
 	_eventList = new Gui::EventListView(SCApp->query(), true, false, this);
 
+	if ( global.highlightRequiresAction ) {
+		QColor hlColor = SCApp->configGetColor(
+		    "eventlist.highlight.color", QColor(255, 165, 0, 80));
+		_eventList->setRequiresActionHighlight(true, hlColor);
+	}
+
 	QVBoxLayout *evtListLayout = new QVBoxLayout(_ui.tabEvents);
 	evtListLayout->setContentsMargins(0, 0, 0, 0);
 	evtListLayout->addWidget(_eventList);
@@ -330,6 +336,28 @@ MainWindow::MainWindow() {
 	        _ui.frameSummary, &QWidget::setVisible);
 	connect(_ui.actionShowEventList, &QAction::triggered,
 	        this, &MainWindow::showEventList);
+
+	connect(_ui.actionShowStations, SIGNAL(toggled(bool)),
+	        _originLocator, SLOT(drawStations(bool)));
+	connect(_ui.actionShowStations, SIGNAL(toggled(bool)),
+	        _magnitudes, SLOT(drawStations(bool)));
+	connect(_ui.actionShowStations, SIGNAL(toggled(bool)),
+	        _eventEdit, SLOT(drawStations(bool)));
+
+	connect(_ui.actionShowStationAnnotations, SIGNAL(toggled(bool)),
+	        _originLocator, SLOT(drawStationAnnotations(bool)));
+	connect(_ui.actionShowStationAnnotations, SIGNAL(toggled(bool)),
+	        _magnitudes, SLOT(drawStationAnnotations(bool)));
+	connect(_ui.actionShowStationAnnotations, SIGNAL(toggled(bool)),
+	        _eventEdit, SLOT(drawStationAnnotations(bool)));
+
+	// Apply initial state
+	_originLocator->drawStations(_ui.actionShowStations->isChecked());
+	_originLocator->drawStationAnnotations(_ui.actionShowStationAnnotations->isChecked());
+	_magnitudes->drawStations(_ui.actionShowStations->isChecked());
+	_magnitudes->drawStationAnnotations(_ui.actionShowStationAnnotations->isChecked());
+	_eventEdit->drawStations(_ui.actionShowStations->isChecked());
+	_eventEdit->drawStationAnnotations(_ui.actionShowStationAnnotations->isChecked());
 
 	connect(_ui.actionPreviousEvent, SIGNAL(triggered(bool)),
 	        _eventList, SLOT(setPreviousEvent()));

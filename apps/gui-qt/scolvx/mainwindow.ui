@@ -119,6 +119,8 @@
      <string>&amp;View</string>
     </property>
     <addaction name="actionShowSummary"/>
+    <addaction name="actionShowStations"/>
+    <addaction name="actionShowStationAnnotations"/>
     <addaction name="actionShowEventList"/>
    </widget>
    <widget class="QMenu" name="menuSettings">
@@ -248,6 +250,40 @@
    </property>
    <property name="shortcut">
     <string>F8</string>
+   </property>
+  </action>
+  <action name="actionShowStations">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Show stations</string>
+   </property>
+   <property name="toolTip">
+    <string>Show stations (F9)</string>
+   </property>
+   <property name="shortcut">
+    <string>F9</string>
+   </property>
+  </action>
+  <action name="actionShowStationAnnotations">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>false</bool>
+   </property>
+   <property name="text">
+    <string>Show station annotations</string>
+   </property>
+   <property name="toolTip">
+    <string>Show station annotations (Shift+F9)</string>
+   </property>
+   <property name="shortcut">
+    <string>Shift+F9</string>
    </property>
   </action>
   <action name="actionShowEventList">

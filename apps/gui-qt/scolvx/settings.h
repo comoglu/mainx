@@ -41,6 +41,9 @@ struct Settings : System::Application::AbstractSettings {
 	bool        drawMapLines{true};
 	bool        drawGridLines{true};
 	bool        computeMissingTakeOffAngles{true};
+
+	// Event list highlight
+	bool        highlightRequiresAction{false};
 };
 
 

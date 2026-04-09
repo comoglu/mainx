@@ -118,6 +118,27 @@
           <description>Show a system tray icon with event notifications.</description>
         </parameter>
       </group>
+      <group name="eventlist">
+        <group name="highlight">
+          <parameter name="enable" type="boolean" default="false">
+            <description>
+              Highlight rows in the event list that require operator action.
+              An event is highlighted if its preferred origin is automatic,
+              or if it is an earthquake with a preliminary status, or if it
+              is marked as not-existing without a certainty set.
+              Events that are confirmed, reviewed, or classified as quarry
+              blast / outside network interest are not highlighted.
+            </description>
+          </parameter>
+          <parameter name="color" type="color" default="255, 165, 0, 80">
+            <description>
+              Background colour applied to highlighted event rows.
+              Specified as R,G,B or R,G,B,A (0-255). The default is a
+              semi-transparent amber that works on both light and dark themes.
+            </description>
+          </parameter>
+        </group>
+      </group>
       <group name="scripts">
         <parameter name="export" type="string">
           <description>
