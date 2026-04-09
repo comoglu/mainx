@@ -114,6 +114,8 @@ class MainWindow : public Gui::MainWindow {
 		void fileOpen();
 		void fileSave();
 
+		void configureAcquisition();
+
 		void trayIconActivated(QSystemTrayIcon::ActivationReason);
 		void trayIconMessageClicked();
 
@@ -148,6 +150,7 @@ class MainWindow : public Gui::MainWindow {
 		std::string                       _eventID;
 		QWidget                          *_currentTabWidget{nullptr};
 		QProcess                          _exportProcess;
+		QAction                          *_actionConfigureAcquisition{nullptr};
 };
 
 

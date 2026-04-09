@@ -44,7 +44,6 @@ void Settings::accept(System::Application::SettingsLinker &linker) {
 	& cfg(drawMapLines,                    "olv.drawMapLines")
 	& cfg(drawGridLines,                   "olv.drawGridLines")
 	& cfg(computeMissingTakeOffAngles,     "olv.computeMissingTakeOffAngles")
-	& cfg(highlightRequiresAction,         "eventlist.highlight.enable")
 	;
 }
 // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<

@@ -39,6 +39,8 @@
 #include <seiscomp/gui/datamodel/amplitudeview.h>
 #include <seiscomp/gui/datamodel/eventlistview.h>
 #include <seiscomp/gui/datamodel/eventedit.h>
+#include <seiscomp/gui/datamodel/pickersettings.h>
+#include <seiscomp/gui/core/processmanager.h>
 #include <seiscomp/gui/map/imagetree.h>
 
 #include <QCloseEvent>
@@ -147,16 +149,114 @@ MainWindow::MainWindow() {
 	locatorConfig.drawGridLines               = global.drawGridLines;
 	locatorConfig.computeMissingTakeOffAngles = global.computeMissingTakeOffAngles;
 
-	// Additional picker/amplitude config from raw config
-	try { pickerConfig.showCrossHair              = SCApp->configGetBool("picker.showCrossHairCursor"); }
+	// -----------------------------------------------------------------------
+	// Picker config — mirrors scolv's mainframe.cpp config loading
+	// -----------------------------------------------------------------------
+	try { pickerConfig.showCrossHair = SCApp->configGetBool("picker.showCrossHairCursor"); }
 	catch ( ... ) {}
 	try { pickerConfig.ignoreUnconfiguredStations = SCApp->configGetBool("picker.ignoreUnconfiguredStations"); }
 	catch ( ... ) {}
-	try { pickerConfig.loadAllComponents          = SCApp->configGetBool("picker.loadAllComponents"); }
+	try { pickerConfig.loadAllComponents = SCApp->configGetBool("picker.loadAllComponents"); }
 	catch ( ... ) {}
-	try { pickerConfig.loadAllPicks               = SCApp->configGetBool("picker.loadAllPicks"); }
+	try { pickerConfig.loadAllPicks = SCApp->configGetBool("picker.loadAllPicks"); }
 	catch ( ... ) {}
-	try { pickerConfig.loadStrongMotionData       = SCApp->configGetBool("picker.loadStrongMotion"); }
+	try { pickerConfig.loadStrongMotionData = SCApp->configGetBool("picker.loadStrongMotion"); }
+	catch ( ... ) {}
+	try { pickerConfig.showAllComponents = SCApp->configGetBool("picker.showAllComponents"); }
+	catch ( ... ) {}
+	try { pickerConfig.repickerSignalStart = SCApp->configGetDouble("picker.repickerStart"); }
+	catch ( ... ) {}
+	try { pickerConfig.repickerSignalEnd = SCApp->configGetDouble("picker.repickerEnd"); }
+	catch ( ... ) {}
+	try { pickerConfig.defaultAddStationsDistance = SCApp->configGetDouble("olv.defaultAddStationsDistance"); }
+	catch ( ... ) {}
+	try { pickerConfig.loadStationsWithinDistanceInitially = SCApp->configGetBool("olv.loadAdditionalStations"); }
+	catch ( ... ) {}
+	try { pickerConfig.hideStationsWithoutData = SCApp->configGetBool("olv.hideStationsWithoutData"); }
+	catch ( ... ) {}
+	try { pickerConfig.hideDisabledStations = SCApp->configGetBool("olv.hideDisabledStations"); }
+	catch ( ... ) {}
+	try { pickerConfig.ignoreDisabledStations = SCApp->configGetBool("olv.ignoreDisabledStations"); }
+	catch ( ... ) {}
+	try { pickerConfig.defaultDepth = SCApp->configGetDouble("olv.defaultDepth"); }
+	catch ( ... ) {}
+
+	// Phase groups and favourites
+	try {
+		vector<string> phases = SCApp->configGetStrings("picker.phases.favourites");
+		for ( const auto &ph : phases )
+			pickerConfig.favouritePhases.append(ph.c_str());
+	}
+	catch ( ... ) {}
+
+	try {
+		vector<string> phases = SCApp->configGetStrings("picker.showPhases");
+		for ( const auto &ph : phases )
+			pickerConfig.addShowPhase(ph.c_str());
+	}
+	catch ( ... ) {}
+
+	// Picker filters
+	try {
+		vector<string> filters = SCApp->configGetStrings("picker.filters");
+		for ( const auto &f : filters ) {
+			if ( f.empty() ) continue;
+			QString qs = f.c_str();
+			QStringList tok = qs.split(";");
+			if ( tok.size() != 2 ) continue;
+			pickerConfig.addFilter(tok[0], tok[1]);
+		}
+	}
+	catch ( ... ) {
+		pickerConfig.addFilter("Teleseismic", "BW(3,0.7,2)");
+		pickerConfig.addFilter("Regional",    "BW(3,2,6)");
+		pickerConfig.addFilter("Local",       "BW(3,4,10)");
+	}
+
+	// Auxiliary channel profiles
+	try {
+		auto patterns = SCApp->configGetStrings("picker.auxiliary.channels");
+		double minD = 0, maxD = 1000;
+		try { minD = SCApp->configGetDouble("picker.auxiliary.minimumDistance"); } catch ( ... ) {}
+		try { maxD = SCApp->configGetDouble("picker.auxiliary.maximumDistance"); } catch ( ... ) {}
+		pickerConfig.auxiliaryChannelProfiles.push_back({ QString(), patterns, minD, maxD });
+	}
+	catch ( ... ) {}
+
+	try {
+		auto profiles = SCApp->configGetStrings("picker.auxiliary.profiles");
+		for ( const auto &profile : profiles ) {
+			auto patterns = SCApp->configGetStrings("picker.auxiliary.profiles." + profile + ".channels");
+			double minD = 0, maxD = 1000;
+			try { minD = SCApp->configGetDouble("picker.auxiliary.profiles." + profile + ".minimumDistance"); } catch ( ... ) {}
+			try { maxD = SCApp->configGetDouble("picker.auxiliary.profiles." + profile + ".maximumDistance"); } catch ( ... ) {}
+			pickerConfig.auxiliaryChannelProfiles.push_back({ profile.data(), patterns, minD, maxD });
+		}
+	}
+	catch ( ... ) {}
+
+	// -----------------------------------------------------------------------
+	// Amplitude picker config
+	// -----------------------------------------------------------------------
+	try { amplitudeConfig.preOffset = Core::TimeSpan(SCApp->configGetDouble("amplitudePicker.preOffset")); }
+	catch ( ... ) { amplitudeConfig.preOffset = Core::TimeSpan(300, 0); }
+	try { amplitudeConfig.postOffset = Core::TimeSpan(SCApp->configGetDouble("amplitudePicker.postOffset")); }
+	catch ( ... ) { amplitudeConfig.postOffset = Core::TimeSpan(300, 0); }
+	try { amplitudeConfig.defaultNoiseBegin = SCApp->configGetDouble("amplitudePicker.defaultNoiseBegin"); } catch ( ... ) {}
+	try { amplitudeConfig.defaultNoiseEnd = SCApp->configGetDouble("amplitudePicker.defaultNoiseEnd"); } catch ( ... ) {}
+	try { amplitudeConfig.defaultSignalBegin = SCApp->configGetDouble("amplitudePicker.defaultSignalBegin"); } catch ( ... ) {}
+	try { amplitudeConfig.defaultSignalEnd = SCApp->configGetDouble("amplitudePicker.defaultSignalEnd"); } catch ( ... ) {}
+
+	try {
+		vector<string> filters = SCApp->configGetStrings("amplitudePicker.filters");
+		for ( const auto &f : filters ) {
+			if ( f.empty() ) continue;
+			QString qs = f.c_str();
+			QStringList tok = qs.split(";");
+			if ( tok.size() != 2 ) continue;
+			amplitudeConfig.addFilter(tok[0], tok[1]);
+		}
+	}
 	catch ( ... ) {}
 
 	// -----------------------------------------------------------------------
@@ -170,10 +270,28 @@ MainWindow::MainWindow() {
 	locLayout->setContentsMargins(0, 0, 0, 0);
 	locLayout->addWidget(_originLocator);
 
+	// Shared fields from pickerConfig (mirrors scolv)
+	amplitudeConfig.auxiliaryChannelProfiles  = pickerConfig.auxiliaryChannelProfiles;
+	amplitudeConfig.defaultAddStationsDistance = pickerConfig.defaultAddStationsDistance;
+	amplitudeConfig.hideStationsWithoutData   = pickerConfig.hideStationsWithoutData;
+	amplitudeConfig.loadStrongMotionData      = pickerConfig.loadStrongMotionData;
+
 	// -----------------------------------------------------------------------
 	// MagnitudeView
 	// -----------------------------------------------------------------------
 	_magnitudes = new Gui::MagnitudeView(mapTree.get(), SCApp->query(), this);
+	_magnitudes->setAmplitudeConfig(amplitudeConfig);
+	_magnitudes->setComputeMagnitudesSilently(global.computeMagnitudesSilently);
+	_magnitudes->setMagnitudeTypeSelectionEnabled(global.enableMagnitudeSelection);
+	_magnitudes->setDrawGridLines(locatorConfig.drawGridLines);
+
+	try {
+		if ( !_magnitudes->setDefaultAggregationType(SCApp->configGetString("olv.defaultMagnitudeAggregation")) ) {
+			SEISCOMP_ERROR("Unknown aggregation in olv.defaultMagnitudeAggregation: %s",
+			               SCApp->configGetString("olv.defaultMagnitudeAggregation").c_str());
+		}
+	}
+	catch ( ... ) {}
 
 	QVBoxLayout *magLayout = new QVBoxLayout(_ui.tabMagnitudes);
 	magLayout->setContentsMargins(0, 0, 0, 0);
@@ -192,12 +310,6 @@ MainWindow::MainWindow() {
 	// EventListView — the event catalogue browser
 	// -----------------------------------------------------------------------
 	_eventList = new Gui::EventListView(SCApp->query(), true, false, this);
-
-	if ( global.highlightRequiresAction ) {
-		QColor hlColor = SCApp->configGetColor(
-		    "eventlist.highlight.color", QColor(255, 165, 0, 80));
-		_eventList->setRequiresActionHighlight(true, hlColor);
-	}
 
 	QVBoxLayout *evtListLayout = new QVBoxLayout(_ui.tabEvents);
 	evtListLayout->setContentsMargins(0, 0, 0, 0);
@@ -258,10 +370,22 @@ MainWindow::MainWindow() {
 	connect(_originLocator, SIGNAL(eventListRequested()),
 	        this, SLOT(showEventList()));
 
+	_originLocator->setMagnitudeCalculationEnabled(true);
+
+	connect(_originLocator, SIGNAL(computeMagnitudesRequested()),
+	        _magnitudes, SLOT(computeMagnitudes()));
+
 	// -----------------------------------------------------------------------
 	// Signal connections: MagnitudeView signals → OriginLocatorView slots
 	// (magnitudeRemoved/Selected are slots on OriginLocatorView, not signals)
 	// -----------------------------------------------------------------------
+	connect(_magnitudes,
+	        SIGNAL(localAmplitudesAvailable(Seiscomp::DataModel::Origin*,
+	                                        AmplitudeSet*, StringSet*)),
+	        _originLocator,
+	        SLOT(setLocalAmplitudes(Seiscomp::DataModel::Origin*,
+	                                AmplitudeSet*, StringSet*)));
+
 	connect(_magnitudes,
 	        SIGNAL(magnitudeRemoved(const QString &, Seiscomp::DataModel::Object*)),
 	        _originLocator,
@@ -271,6 +395,24 @@ MainWindow::MainWindow() {
 	        SIGNAL(magnitudeSelected(const QString &, Seiscomp::DataModel::Magnitude*)),
 	        _originLocator,
 	        SLOT(magnitudeSelected(const QString &, Seiscomp::DataModel::Magnitude*)));
+
+	// After relocation magnitudes are added → reload magnitude view
+	connect(_originLocator,
+	        SIGNAL(magnitudesAdded(Seiscomp::DataModel::Origin*,
+	                               Seiscomp::DataModel::Event*)),
+	        _magnitudes, SLOT(reload()));
+
+	// Disable rework after update or commit
+	connect(_originLocator,
+	        SIGNAL(updatedOrigin(Seiscomp::DataModel::Origin*)),
+	        _magnitudes, SLOT(disableRework()));
+
+	connect(_originLocator,
+	        SIGNAL(committedOrigin(Seiscomp::DataModel::Origin*,
+	                               Seiscomp::DataModel::Event*,
+	                               const Seiscomp::Gui::ObjectChangeList<Seiscomp::DataModel::Pick>&,
+	                               const std::vector<Seiscomp::DataModel::AmplitudePtr>&)),
+	        _magnitudes, SLOT(disableRework()));
 
 	// -----------------------------------------------------------------------
 	// Signal connections: EventListView
@@ -322,6 +464,22 @@ MainWindow::MainWindow() {
 	        SIGNAL(updateObject(const QString &, Seiscomp::DataModel::Object*)),
 	        this,
 	        SLOT(objectUpdated(const QString &, Seiscomp::DataModel::Object*)));
+
+	// Forward messaging objects to MagnitudeView so it receives real-time updates
+	connect(SCApp,
+	        SIGNAL(addObject(const QString &, Seiscomp::DataModel::Object*)),
+	        _magnitudes,
+	        SLOT(addObject(const QString &, Seiscomp::DataModel::Object*)));
+
+	connect(SCApp,
+	        SIGNAL(updateObject(const QString &, Seiscomp::DataModel::Object*)),
+	        _magnitudes,
+	        SLOT(updateObject(const QString &, Seiscomp::DataModel::Object*)));
+
+	connect(SCApp,
+	        SIGNAL(removeObject(const QString &, Seiscomp::DataModel::Object*)),
+	        _magnitudes,
+	        SLOT(removeObject(const QString &, Seiscomp::DataModel::Object*)));
 
 	// -----------------------------------------------------------------------
 	// Signal connections: tab widget and menu actions
@@ -380,8 +538,30 @@ MainWindow::MainWindow() {
 	// -----------------------------------------------------------------------
 	// Settings menu
 	// -----------------------------------------------------------------------
+	_actionConfigureAcquisition = new QAction(this);
+	_actionConfigureAcquisition->setObjectName(QString::fromUtf8("configureAcquisition"));
+	_actionConfigureAcquisition->setShortcut(QKeySequence(Qt::Key_F3));
+	_actionConfigureAcquisition->setText(tr("Configure &OriginLocatorView..."));
+	addAction(_actionConfigureAcquisition);
+	connect(_actionConfigureAcquisition, SIGNAL(triggered(bool)),
+	        this, SLOT(configureAcquisition()));
+	_ui.menuSettings->addAction(_actionConfigureAcquisition);
+
 	if ( SCApp->isMessagingEnabled() || SCApp->isDatabaseEnabled() )
 		_ui.menuSettings->addAction(_actionShowSettings);
+
+	// Process Manager — shows running SeisComP modules
+	{
+		QAction *actionProcessManager = new QAction(this);
+		actionProcessManager->setText(tr("&Process Manager"));
+		actionProcessManager->setIcon(Gui::icon("process_manager"));
+		addAction(actionProcessManager);
+		connect(actionProcessManager, &QAction::triggered, []() {
+			SCApp->processManager()->show();
+		});
+		_ui.menuView->addSeparator();
+		_ui.menuView->addAction(actionProcessManager);
+	}
 
 	// Full-screen toggle provided by Gui::MainWindow
 	_ui.menuView->insertAction(_ui.actionShowSummary, _actionToggleFullScreen);
@@ -570,6 +750,10 @@ void MainWindow::closeEvent(QCloseEvent *e) {
 	}
 
 	Gui::MainWindow::closeEvent(e);
+	if ( !e->isAccepted() ) return;
+
+	_originLocator->close();
+	_magnitudes->close();
 }
 // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -657,7 +841,7 @@ void MainWindow::updateEventTabText() {
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 void MainWindow::setOrigin(DataModel::Origin *origin,
                            DataModel::Event  *event,
-                           bool, bool) {
+                           bool newOrigin, bool) {
 	// Called from newOriginSet — the locator already owns the origin.
 	// Do NOT call _originLocator->setOrigin() here (would re-trigger the signal).
 	if ( !origin ) return;
@@ -666,6 +850,7 @@ void MainWindow::setOrigin(DataModel::Origin *origin,
 	_eventID       = event ? event->publicID() : std::string();
 
 	_magnitudes->setOrigin(origin, event);
+	_magnitudes->setReadOnly(!newOrigin);
 	if ( event )
 		_magnitudes->setPreferredMagnitudeID(event->preferredMagnitudeID());
 
@@ -711,7 +896,10 @@ void MainWindow::updateOrigin(DataModel::Origin *origin,
 
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 void MainWindow::onUpdatedOrigin(DataModel::Origin *origin) {
-	_magnitudes->setOrigin(origin, nullptr);
+	// After relocation, the origin object is the same — just tell magnitudes
+	// to disable rework (handled by signal connection). Nothing more needed;
+	// setOrigin was already called via newOriginSet when the locator loaded it.
+	(void)origin;
 }
 // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -878,6 +1066,105 @@ void MainWindow::fileOpen() {
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 void MainWindow::fileSave() {
 	// TODO: serialize _offlineData to XML
+}
+// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+void MainWindow::configureAcquisition() {
+	Gui::PickerSettings dlg(_originLocator->config(),
+	                        _originLocator->pickerConfig(),
+	                        _magnitudes->amplitudeConfig());
+
+	dlg.ui().cbComputeMagnitudesAfterRelocate->setEnabled(true);
+	dlg.ui().cbComputeMagnitudesAfterRelocate->setChecked(global.computeMagnitudesAfterRelocate);
+	dlg.ui().cbComputeMagnitudesSilently->setEnabled(true);
+	dlg.ui().cbComputeMagnitudesSilently->setChecked(global.computeMagnitudesSilently);
+	dlg.ui().cbAskForMagnitudeTypes->setChecked(global.enableMagnitudeSelection);
+	dlg.setSaveEnabled(true);
+
+	if ( dlg.exec() != QDialog::Accepted )
+		return;
+
+	global.computeMagnitudesAfterRelocate = dlg.ui().cbComputeMagnitudesAfterRelocate->isChecked();
+	global.computeMagnitudesSilently      = dlg.ui().cbComputeMagnitudesSilently->isChecked();
+	global.enableMagnitudeSelection       = dlg.ui().cbAskForMagnitudeTypes->isChecked();
+
+	_magnitudes->setComputeMagnitudesSilently(global.computeMagnitudesSilently);
+	_magnitudes->setMagnitudeTypeSelectionEnabled(global.enableMagnitudeSelection);
+
+	Gui::OriginLocatorView::Config lc = dlg.locatorConfig();
+	Gui::PickerView::Config        pc = dlg.pickerConfig();
+	Gui::AmplitudeView::Config     ac = dlg.amplitudeConfig();
+
+	_originLocator->setConfig(lc);
+	_originLocator->setPickerConfig(pc);
+	_magnitudes->setDrawGridLines(lc.drawGridLines);
+	_magnitudes->setAmplitudeConfig(ac);
+
+	if ( dlg.saveSettings() ) {
+		SCApp->configSetBool("olv.computeMagnitudesAfterRelocate", global.computeMagnitudesAfterRelocate);
+		SCApp->configSetBool("olv.computeMagnitudesSilently",      global.computeMagnitudesSilently);
+		SCApp->configSetBool("olv.enableMagnitudeSelection",        global.enableMagnitudeSelection);
+		SCApp->configSetDouble("olv.Pvel",                          lc.reductionVelocityP);
+		SCApp->configSetBool("olv.drawMapLines",                    lc.drawMapLines);
+		SCApp->configSetBool("olv.drawGridLines",                   lc.drawGridLines);
+		SCApp->configSetBool("olv.computeMissingTakeOffAngles",     lc.computeMissingTakeOffAngles);
+		SCApp->configSetDouble("olv.defaultAddStationsDistance",    pc.defaultAddStationsDistance);
+		SCApp->configSetBool("olv.hideStationsWithoutData",         pc.hideStationsWithoutData);
+		SCApp->configSetBool("olv.hideDisabledStations",            pc.hideDisabledStations);
+		SCApp->configSetBool("olv.ignoreDisabledStations",          pc.ignoreDisabledStations);
+
+		SCApp->configSetBool("picker.showCrossHairCursor",           pc.showCrossHair);
+		SCApp->configSetBool("picker.ignoreUnconfiguredStations",    pc.ignoreUnconfiguredStations);
+		SCApp->configSetBool("picker.loadAllComponents",             pc.loadAllComponents);
+		SCApp->configSetBool("picker.loadAllPicks",                  pc.loadAllPicks);
+		SCApp->configSetBool("picker.showDataInSensorUnit",          pc.showDataInSensorUnit);
+		SCApp->configSetBool("picker.loadStrongMotion",              pc.loadStrongMotionData);
+		SCApp->configSetBool("picker.limitStationAcquisition",       pc.limitStations);
+		SCApp->configSetInt("picker.limitStationAcquisitionCount",   pc.limitStationCount);
+		SCApp->configSetBool("picker.showAllComponents",             pc.showAllComponents);
+		SCApp->configSetDouble("picker.allComponentsMaximumDistance",pc.allComponentsMaximumStationDistance);
+		SCApp->configSetBool("picker.usePerStreamTimeWindows",       pc.usePerStreamTimeWindows);
+		SCApp->configSetDouble("picker.preOffset",                   static_cast<double>(pc.preOffset));
+		SCApp->configSetDouble("picker.postOffset",                  static_cast<double>(pc.postOffset));
+		SCApp->configSetDouble("picker.minimumTimeWindow",           static_cast<double>(pc.minimumTimeWindow));
+		SCApp->configSetDouble("picker.alignmentPosition",           pc.alignmentPosition);
+		SCApp->configSetBool("picker.removeAutomaticPicksFromStationAfterManualReview",
+		                     pc.removeAutomaticStationPicks);
+		SCApp->configSetBool("picker.removeAllAutomaticPicksAfterManualReview",
+		                     pc.removeAutomaticPicks);
+		SCApp->configSetString("recordstream",                       pc.recordURL.toStdString());
+
+		std::vector<std::string> filters;
+		for ( const auto &entry : pc.filters )
+			filters.push_back(QString("%1;%2").arg(entry.first, entry.second).toStdString());
+		SCApp->configSetStrings("picker.filters", filters);
+
+		filters.clear();
+		for ( const auto &entry : ac.filters )
+			filters.push_back(QString("%1;%2").arg(entry.first, entry.second).toStdString());
+
+		if ( pc.repickerSignalStart )
+			SCApp->configSetDouble("picker.repickerStart", *pc.repickerSignalStart);
+		else
+			SCApp->configUnset("picker.repickerStart");
+
+		if ( pc.repickerSignalEnd )
+			SCApp->configSetDouble("picker.repickerEnd", *pc.repickerSignalEnd);
+		else
+			SCApp->configUnset("picker.repickerEnd");
+
+		SCApp->configSetString("picker.integration.preFilter",  pc.integrationFilter.toStdString());
+		SCApp->configSetBool("picker.integration.applyOnce",    pc.onlyApplyIntegrationFilterOnce);
+
+		SCApp->configSetDouble("amplitudePicker.preOffset",  static_cast<double>(ac.preOffset));
+		SCApp->configSetDouble("amplitudePicker.postOffset", static_cast<double>(ac.postOffset));
+
+		SCApp->saveConfiguration();
+	}
 }
 // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
