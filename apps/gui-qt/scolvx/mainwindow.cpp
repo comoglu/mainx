@@ -428,6 +428,18 @@ MainWindow::MainWindow() {
 	                               const std::vector<Seiscomp::DataModel::AmplitudePtr>&)),
 	        _magnitudes, SLOT(disableRework()));
 
+	// Send committed origin + picks + amplitudes to messaging/database
+	connect(_originLocator,
+	        SIGNAL(committedOrigin(Seiscomp::DataModel::Origin*,
+	                               Seiscomp::DataModel::Event*,
+	                               const Seiscomp::Gui::ObjectChangeList<Seiscomp::DataModel::Pick>&,
+	                               const std::vector<Seiscomp::DataModel::AmplitudePtr>&)),
+	        _eventList,
+	        SLOT(insertOrigin(Seiscomp::DataModel::Origin*,
+	                          Seiscomp::DataModel::Event*,
+	                          const Seiscomp::Gui::ObjectChangeList<Seiscomp::DataModel::Pick>&,
+	                          const std::vector<Seiscomp::DataModel::AmplitudePtr>&)));
+
 	// -----------------------------------------------------------------------
 	// Signal connections: EventListView
 	// originSelected → loadOrigin (loads origin INTO the locator from DB)
