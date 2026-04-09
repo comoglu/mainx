@@ -80,7 +80,80 @@
           Number of days to read from the database at startup.
         </description>
       </parameter>
+      <parameter name="magnitudes" type="list:string" default="MLv,mb,mB,Mwp">
+        <description>
+          List of magnitude types to be calculated when computing magnitudes.
+          This list can be altered interactively, so it reflects only the
+          default unless computeMagnitudesSilently is set to true. The
+          configured types should include all types also computed by scmag.
+        </description>
+      </parameter>
+      <parameter name="visibleMagnitudes" type="list:string" default="M,ML,MLv,mb,mB,Mwp,Mjma,Ms_20,Ms(BB)">
+        <description>
+          A list of magnitude types to be displayed in the summary panel (F8).
+        </description>
+      </parameter>
+      <group name="scripts">
+        <description>
+          Names of executable scripts linked to the Publish button.
+        </description>
+        <parameter name="export" type="file" options="execute">
+          <description>
+            Full path to the script which enables a Publish button in the
+            summary panel on the left side of scolvx (F8). The event public
+            ID is passed as the first argument.
+          </description>
+        </parameter>
+        <group name="export">
+          <parameter name="silentTerminate" type="boolean" default="false">
+            <description>
+              Silently terminate a running export script when closing scolvx,
+              instead of asking for confirmation.
+            </description>
+          </parameter>
+        </group>
+      </group>
       <group name="olv">
+        <parameter name="defaultEventType" type="string">
+          <description>
+            Sets the default event type used when confirming a solution. If
+            not set, the event type is not changed unless "with options" is
+            used. The origin must already be associated with an event.
+          </description>
+        </parameter>
+        <parameter name="commonEventTypes" type="list:string">
+          <description>
+            A list of event types which are commonly set. Defines a priority
+            list displayed on top of the event type selection menu.
+            Remaining types are displayed with less contrast.
+          </description>
+        </parameter>
+        <parameter name="defaultMagnitudeAggregation" type="string" default=""
+                   values="mean,trimmedMean,median,medianTrimmedMean">
+          <description>
+            Sets the default magnitude aggregation method. If not set, the
+            default behaviour computes the mean for fewer than 4 stations,
+            trimmed mean otherwise.
+          </description>
+        </parameter>
+        <parameter name="computeMagnitudesAfterRelocate" type="boolean" default="false">
+          <description>
+            Automatically compute magnitudes after relocating an origin.
+          </description>
+        </parameter>
+        <parameter name="computeMagnitudesSilently" type="boolean" default="false">
+          <description>
+            Start magnitude computation without user interaction if everything
+            runs without errors. In case of errors a window pops up with the
+            current state of processing.
+          </description>
+        </parameter>
+        <parameter name="enableMagnitudeSelection" type="boolean" default="true">
+          <description>
+            If enabled, a magnitude selection popup will open before computing
+            magnitudes. The default selection reflects the "magnitudes" parameter.
+          </description>
+        </parameter>
         <parameter name="Pvel" type="double" default="6.0" unit="km/s">
           <description>
             P-wave reduction velocity used in the travel-time curve display.
@@ -97,40 +170,611 @@
         <parameter name="computeMissingTakeOffAngles" type="boolean" default="true">
           <description>
             Compute take-off angles for arrivals that do not have them stored.
+            Required for first-motion polarity display.
           </description>
         </parameter>
-        <parameter name="computeMagnitudesAfterRelocate" type="boolean" default="false">
+        <parameter name="defaultAddStationsDistance" type="double" unit="deg" default="15.0">
           <description>
-            Automatically compute magnitudes after a relocation.
+            Default distance in degrees for adding unassociated stations in
+            the picker.
           </description>
         </parameter>
-        <parameter name="computeMagnitudesSilently" type="boolean" default="false">
+        <parameter name="loadAdditionalStations" type="boolean" default="false">
           <description>
-            Do not ask for confirmation before computing magnitudes automatically.
+            If enabled, all stations within the configured distance will be
+            loaded when a new origin is loaded.
           </description>
         </parameter>
-        <parameter name="enableMagnitudeSelection" type="boolean" default="true">
+        <parameter name="hideStationsWithoutData" type="boolean" default="false">
           <description>
-            Allow the user to select which magnitude types to compute.
+            If enabled, all traces without data and arrivals are hidden in
+            the picker.
+          </description>
+        </parameter>
+        <parameter name="hideDisabledStations" type="boolean" default="false">
+          <description>
+            If enabled, all traces of disabled stations without picks are
+            hidden in the picker.
+          </description>
+        </parameter>
+        <parameter name="defaultDepth" type="double" unit="km" default="10.0">
+          <description>
+            Default depth used when creating an artificial origin.
+          </description>
+        </parameter>
+        <parameter name="artificialOriginAdvanced" type="boolean" default="false">
+          <description>
+            Show advanced input parameters in the artificial origin dialog.
           </description>
         </parameter>
         <parameter name="systemTray" type="boolean" default="true">
-          <description>Show a system tray icon with event notifications.</description>
+          <description>
+            Show a system tray icon and display a notification when a new
+            event is received.
+          </description>
+        </parameter>
+        <group name="map">
+          <group name="stations">
+            <parameter name="unassociatedMaxDist" type="double" unit="deg" default="360.0">
+              <description>
+                Maximum distance in degrees up to which unassociated stations
+                are shown on the map. 360 deg shows all unassociated stations.
+              </description>
+            </parameter>
+          </group>
+          <group name="event">
+            <parameter name="defaultRadius" type="double" unit="deg" default="-1.0">
+              <description>
+                Default map radius in degrees when a new event is selected.
+                A negative value restores the default behaviour.
+              </description>
+            </parameter>
+          </group>
+        </group>
+        <group name="arrivalTable">
+          <parameter name="visibleColumns" type="list:string">
+            <description>
+              Defines the visible columns in the arrival table. Valid tokens:
+              Used, Status, Phase, Weight, Method, Polarity, Takeoff,
+              Net, Sta, Loc/Cha, Timeres, Dis, Az, Time, +/-,
+              Slo, Slores, Baz, Bazres, Created, Latency
+            </description>
+          </parameter>
+        </group>
+        <group name="arrivalPlot">
+          <parameter name="showUncertainties" type="boolean" default="true">
+            <description>
+              Whether the arrival plot shows uncertainties by default.
+              Can be toggled with 'e' or via the context menu at runtime.
+            </description>
+          </parameter>
+        </group>
+        <group name="locator">
+          <parameter name="interface" type="string" default="LOCSAT"
+                     values="FixedHypocenter,Hypo71,LocExt,LocRouter,LOCSAT,NonLinLoc,StdLoc">
+            <description>The default locator interface to use.</description>
+          </parameter>
+          <parameter name="defaultProfile" type="string">
+            <description>The default locator profile to use.</description>
+          </parameter>
+          <parameter name="minimumDepth" type="double" unit="km">
+            <description>
+              Minimum depth set when the locator supports fixing depth. If
+              the computed depth is shallower, it is fixed to this value and
+              the origin is relocated again.
+            </description>
+          </parameter>
+          <parameter name="presetFromOrigin" type="boolean" default="false">
+            <description>
+              Preset locator settings from the loaded origin. Tries to infer
+              the locator type from Origin.methodID and the profile from
+              Origin.earthModelID.
+            </description>
+          </parameter>
+        </group>
+        <group name="import">
+          <description>
+            Default options for the "Import picks" dialog.
+          </description>
+          <parameter name="mode" type="string" default="latest"
+                     values="latest,latest-automatic,phases,all">
+            <description>
+              Default mode for importing picks. See the "Import picks" dialog
+              for details.
+            </description>
+          </parameter>
+          <parameter name="acceptedPhases" type="list:string">
+            <description>
+              List of accepted or denied phases when importing picks. A phase
+              prepended with a minus (e.g. "-P") is denied.
+            </description>
+          </parameter>
+          <group name="options">
+            <parameter name="allAgencies" type="boolean" default="false">
+              <description>
+                Default for "Import picks from all agencies".
+              </description>
+            </parameter>
+            <parameter name="allPhases" type="boolean" default="true">
+              <description>
+                Default for "Import all phases".
+              </description>
+            </parameter>
+            <parameter name="preferTargetPhases" type="boolean" default="true">
+              <description>
+                Default for "Prefer phases of target".
+              </description>
+            </parameter>
+          </group>
+        </group>
+        <group name="commit">
+          <parameter name="forceEventAssociation" type="boolean" default="false">
+            <description>
+              Activate "Force association with event" by default when
+              committing with additional options.
+            </description>
+          </parameter>
+          <parameter name="fixOrigin" type="boolean" default="false">
+            <description>
+              Activate "Fix this origin as preferred solution" by default
+              when committing with additional options.
+            </description>
+          </parameter>
+          <parameter name="returnToEventList" type="boolean" default="false">
+            <description>
+              Return to the event list after committing with additional
+              options.
+            </description>
+          </parameter>
+          <parameter name="eventCommentOptions" type="list:string">
+            <description>
+              Turns the event comment input field into a drop-down box with
+              predefined values. Values may still be edited if required.
+            </description>
+          </parameter>
+        </group>
+        <parameter name="originAgencyIDs" type="list:string">
+          <description>
+            A list of agencyIDs that can be used as an override for the
+            origin agencyID when committing with options.
+          </description>
+        </parameter>
+        <parameter name="originComments" type="list:string">
+          <description>
+            A list of origin comment profiles used to populate origin
+            comments when committing an origin.
+          </description>
+        </parameter>
+        <group name="originComments">
+          <description>Container for origin comment profiles.</description>
+          <struct name="OriginCommentProfile" link="olv.originComments">
+            <parameter name="id" type="string">
+              <description>The ID of the comment to add, update or remove.</description>
+            </parameter>
+            <parameter name="label" type="string">
+              <description>The label shown in the commit dialog.</description>
+            </parameter>
+            <parameter name="options" type="list:string">
+              <description>
+                List of values to populate the drop-down list with.
+              </description>
+            </parameter>
+            <parameter name="allowFreeText" type="boolean" default="false">
+              <description>
+                Allow free text in addition to predefined values.
+              </description>
+            </parameter>
+          </struct>
+        </group>
+        <parameter name="magnitudeComments" type="list:string">
+          <description>
+            A list of magnitude comment profiles used to populate magnitude
+            comments when committing a magnitude.
+          </description>
+        </parameter>
+        <group name="magnitudeComments">
+          <description>Container for magnitude comment profiles.</description>
+          <struct name="MagnitudeCommentProfile" link="olv.magnitudeComments">
+            <parameter name="id" type="string">
+              <description>The ID of the comment to add, update or remove.</description>
+            </parameter>
+            <parameter name="label" type="string">
+              <description>The label shown in the magnitude view.</description>
+            </parameter>
+            <parameter name="options" type="list:string">
+              <description>
+                List of values to populate the drop-down list with.
+              </description>
+            </parameter>
+            <parameter name="allowFreeText" type="boolean" default="false">
+              <description>
+                Allow free text in addition to predefined values.
+              </description>
+            </parameter>
+          </struct>
+        </group>
+      </group>
+      <group name="picker">
+        <description>Parameters controlling the phase picker window.</description>
+        <parameter name="showCrossHairCursor" type="boolean" default="false">
+          <description>
+            Activate a cross-hair cursor showing configured uncertainties
+            when in picking mode.
+          </description>
+        </parameter>
+        <parameter name="loadAllPicks" type="boolean" default="true">
+          <description>
+            Load all existing picks for the requested data time window.
+          </description>
+        </parameter>
+        <parameter name="ignoreUnconfiguredStations" type="boolean" default="false">
+          <description>
+            If enabled, stations not configured with a detecStream in global
+            bindings are not added in the picker.
+          </description>
+        </parameter>
+        <parameter name="limitStationAcquisition" type="boolean" default="false">
+          <description>
+            Limit data acquisition to the number of nearest stations given
+            by "picker.limitStationAcquisitionCount".
+          </description>
+        </parameter>
+        <parameter name="limitStationAcquisitionCount" type="int" default="10">
+          <description>
+            Limit data acquisition to this number of nearest stations.
+            Requires "picker.limitStationAcquisition" to be enabled.
+          </description>
+        </parameter>
+        <parameter name="loadStrongMotion" type="boolean" default="false">
+          <description>
+            If enabled, acceleration data is loaded for co-located stations
+            where picks were made on velocity data.
+          </description>
+        </parameter>
+        <parameter name="loadAllComponents" type="boolean" default="false">
+          <description>
+            Load all three components by default. If disabled, additional
+            components are fetched on request.
+          </description>
+        </parameter>
+        <parameter name="showAllComponents" type="boolean" default="false">
+          <description>
+            Show all three components in the picker zoom trace. The distance
+            is limited by "picker.allComponentsMaximumDistance".
+          </description>
+        </parameter>
+        <parameter name="allComponentsMaximumDistance" type="double" unit="deg" default="10">
+          <description>
+            Distance limit for the "picker.showAllComponents" flag.
+          </description>
+        </parameter>
+        <parameter name="usePerStreamTimeWindows" type="boolean" default="false">
+          <description>
+            If enabled, data is requested around the P pick for each station.
+            Otherwise origin time is used and the time window is the same for
+            all stations.
+          </description>
+        </parameter>
+        <parameter name="removeAutomaticPicksFromStationAfterManualReview" type="boolean" default="false">
+          <description>
+            After picking and returning to scolvx, all automatic arrivals
+            are removed from a station if a manual pick exists there.
+          </description>
+        </parameter>
+        <parameter name="removeAllAutomaticPicksAfterManualReview" type="boolean" default="false">
+          <description>
+            After picking and returning to scolvx, all automatic arrivals
+            are removed from all stations regardless of whether a manual
+            pick exists.
+          </description>
+        </parameter>
+        <parameter name="preOffset" type="int" unit="s" default="60">
+          <description>
+            Data time span added to the left of either origin time or first
+            arrival depending on the usePerStreamTimeWindows flag.
+          </description>
+        </parameter>
+        <parameter name="postOffset" type="int" unit="s" default="120">
+          <description>
+            Data time span added to the right of the requested time window.
+          </description>
+        </parameter>
+        <parameter name="minimumTimeWindow" type="int" unit="s" default="1800">
+          <description>Minimum data time window length.</description>
+        </parameter>
+        <parameter name="alignmentPosition" type="double" unit="s" default="0.5">
+          <description>
+            Relative position of the alignment when traces are aligned at a
+            phase. Bound to [0:1] where 0 is left and 1 is right.
+          </description>
+        </parameter>
+        <parameter name="rotation" type="string" default="123"
+                   values="123,ZNE,ZRT,LQT,ZH(L2)">
+          <description>
+            Initial component waveform rotation applied in the picker.
+          </description>
+        </parameter>
+        <parameter name="unit" type="string" default="Sensor"
+                   values="Sensor,Acceleration,Velocity,Displacement">
+          <description>
+            Unit the waveform data is converted to initially.
+          </description>
+        </parameter>
+        <parameter name="repickerStart" type="double" unit="s" default="-30">
+          <description>
+            Start of the re-picker time window relative to the cursor
+            position on the trace.
+          </description>
+        </parameter>
+        <parameter name="repickerEnd" type="double" unit="s" default="10">
+          <description>
+            End of the re-picker time window relative to the cursor position
+            on the trace.
+          </description>
+        </parameter>
+        <parameter name="filters" type="list:string">
+          <description>
+            List of filters available in the picker. Format:
+            "name1;filter-definition1", "name2;filter-definition2"
+          </description>
+        </parameter>
+        <parameter name="limitFilterToZoomTrace" type="boolean" default="false">
+          <description>
+            Apply the current filter only to the zoom trace rather than all
+            traces. Mainly a performance optimisation for large numbers of
+            channels.
+          </description>
+        </parameter>
+        <parameter name="velocityChannelCodes" type="list:string">
+          <description>
+            Channel codes used when searching for velocity channels. Only
+            consulted when meta data does not provide this information.
+          </description>
+        </parameter>
+        <parameter name="accelerationChannelCodes" type="list:string">
+          <description>
+            Channel codes used when searching for acceleration channels.
+            Only consulted when meta data does not provide this information.
+          </description>
+        </parameter>
+        <parameter name="showPhases" type="list:string" default="P,Pn,Pg,pP,sP,S,Sg">
+          <description>
+            Phases for which theoretical arrival times are shown in the
+            picker.
+          </description>
+        </parameter>
+        <parameter name="phases" type="list:string" default="">
+          <description>
+            Phases available for picking in the Picking menu. Not accessible
+            via hot keys (use "picker.phases.favourites" for that). Used when
+            "picker.phases.groups" is not defined.
+          </description>
+        </parameter>
+        <parameter name="uncertainties" type="list:string" unit="s">
+          <description>
+            List of pre-defined pick uncertainties. Each item is either a
+            single double or an asymmetric pair, e.g. "0.1","(0.1,0.2)".
+            Only used if "picker.uncertainties.preferred" is not set.
+          </description>
+        </parameter>
+        <parameter name="componentFollowsMouse" type="boolean" default="false">
+          <description>
+            If enabled, the selected component for all traces changes
+            according to the mouse position in the zoom trace. If disabled
+            (default), only the zoom trace component changes.
+          </description>
+        </parameter>
+        <parameter name="showAmpLevel" type="boolean" default="false">
+          <description>
+            Show an amplitude level indicator (0–100) in the upper-right
+            corner of the zoom trace for accessibility support.
+          </description>
+        </parameter>
+        <group name="auxiliary">
+          <description>
+            Profiles for loading auxiliary channels at configurable distance
+            ranges. Auxiliary channels are only loaded within their range.
+          </description>
+          <parameter name="channels" type="list:string">
+            <description>
+              Wildcard patterns identifying auxiliary channels (obsolete;
+              use profiles instead).
+            </description>
+          </parameter>
+          <parameter name="minimumDistance" type="double" unit="deg" default="0">
+            <description>
+              Minimum distance to load an auxiliary channel (obsolete; use
+              profiles instead).
+            </description>
+          </parameter>
+          <parameter name="maximumDistance" type="double" unit="deg" default="1000">
+            <description>
+              Maximum distance to load an auxiliary channel (obsolete; use
+              profiles instead).
+            </description>
+          </parameter>
+          <parameter name="profiles" type="list:string">
+            <description>List of auxiliary channel profiles to enable.</description>
+          </parameter>
+          <group name="profiles">
+            <description>
+              Add profile names to "picker.auxiliary.profiles" to use them.
+            </description>
+            <struct name="AuxiliaryChannelProfile" link="picker.auxiliary.profiles">
+              <parameter name="channels" type="list:string">
+                <description>
+                  Wildcard patterns identifying auxiliary channels. The
+                  orientation code should be '?' or '*'.
+                </description>
+              </parameter>
+              <parameter name="minimumDistance" type="double" unit="deg" default="0">
+                <description>Minimum epicentral distance to load the channel.</description>
+              </parameter>
+              <parameter name="maximumDistance" type="double" unit="deg" default="1000">
+                <description>Maximum epicentral distance to load the channel.</description>
+              </parameter>
+            </struct>
+          </group>
+        </group>
+        <group name="phases">
+          <description>
+            Phase definitions for the picker. Phases can be selected from
+            the Picking menu.
+          </description>
+          <parameter name="favourites" type="list:string" default="P,Pn,Pg,pP,S,Sg,sP">
+            <description>
+              Phase types available for rapid picking via hot keys and in the
+              Picking menu.
+            </description>
+          </parameter>
+          <parameter name="groups" type="list:string">
+            <description>
+              List of phase group profile names to enable.
+            </description>
+          </parameter>
+          <group name="groups">
+            <description>
+              Phase group profile definitions. Add names to
+              "picker.phases.groups" to enable them.
+            </description>
+            <struct type="Phase type profile" link="picker.phases.groups">
+              <parameter type="list:string">
+                <description>List of phase types in this group.</description>
+              </parameter>
+            </struct>
+          </group>
+        </group>
+        <group name="uncertainties">
+          <description>
+            Define uncertainty profiles selectable in the picker settings
+            (F3). Profiles override the "uncertainties" parameter.
+          </description>
+          <parameter name="preferred" type="list:string">
+            <description>
+              Pick uncertainty profiles to load. The first profile is the
+              default.
+            </description>
+          </parameter>
+          <group name="profile">
+            <struct type="Uncertainty profile" link="picker.uncertainties.preferred">
+              <parameter type="list:string" unit="s">
+                <description>
+                  List of pre-defined pick uncertainties. Each item is a
+                  single double or an asymmetric pair, e.g. "0.1","(0.1,0.2)".
+                </description>
+              </parameter>
+            </struct>
+          </group>
+        </group>
+        <group name="integration">
+          <description>
+            Settings for waveform integration applied when the desired
+            waveform unit requires integration of sensor data.
+          </description>
+          <parameter name="preFilter" type="string">
+            <description>
+              Optional pre-filter applied before numerical integration to
+              stabilise the result. Applied at each integration step or once
+              depending on "applyOnce".
+            </description>
+          </parameter>
+          <parameter name="applyOnce" type="boolean" default="true">
+            <description>
+              Apply the pre-filter only before the first integration step
+              rather than before each step.
+            </description>
+          </parameter>
+        </group>
+      </group>
+      <group name="amplitudePicker">
+        <description>
+          Parameters controlling the amplitude picker window used for
+          computing station magnitudes.
+        </description>
+        <parameter name="preOffset" type="int" unit="s" default="300">
+          <description>
+            Time span added to the left of the amplitude time window.
+          </description>
+        </parameter>
+        <parameter name="postOffset" type="int" unit="s" default="300">
+          <description>
+            Time span added to the right of the amplitude time window.
+          </description>
+        </parameter>
+        <parameter name="defaultNoiseBegin" type="double" unit="s" default="-30">
+          <description>
+            Default noise window start when the amplitude time window cannot
+            be computed (e.g. travel-time error).
+          </description>
+        </parameter>
+        <parameter name="defaultNoiseEnd" type="double" unit="s" default="0">
+          <description>
+            Default noise window end when the amplitude time window cannot
+            be computed.
+          </description>
+        </parameter>
+        <parameter name="defaultSignalBegin" type="double" unit="s" default="0">
+          <description>
+            Default signal window start when the amplitude time window cannot
+            be computed.
+          </description>
+        </parameter>
+        <parameter name="defaultSignalEnd" type="double" unit="s" default="30">
+          <description>
+            Default signal window end when the amplitude time window cannot
+            be computed.
+          </description>
+        </parameter>
+        <parameter name="filters" type="list:string">
+          <description>
+            Filters available in the amplitude picker. Format:
+            "name1;filter-definition1", "name2;filter-definition2"
+          </description>
         </parameter>
       </group>
-      <group name="scripts">
-        <parameter name="export" type="string">
+      <group name="display">
+        <description>
+          Display custom information in the Location tab.
+        </description>
+        <group name="origin">
           <description>
-            Path to a script executed when the user clicks the Publish button.
-            The event public ID is passed as the first argument.
+            Origin information to show in the Location tab.
           </description>
-        </parameter>
-        <parameter name="export.silentTerminate" type="boolean" default="false">
-          <description>
-            Silently terminate a running export script when closing scolvx,
-            instead of asking for confirmation.
-          </description>
-        </parameter>
+          <parameter name="addons" type="list:string">
+            <description>
+              Names of quality addon profile(s) to show in the Location tab.
+              Each addon provides values through a script.
+            </description>
+          </parameter>
+          <group name="comment">
+            <description>
+              Origin comment value to display, identified by its comment ID.
+            </description>
+            <parameter name="id" type="string">
+              <description>ID of the origin comment to display.</description>
+            </parameter>
+            <parameter name="default" type="string">
+              <description>
+                Value shown when no valid origin comment is found.
+              </description>
+            </parameter>
+            <parameter name="label" type="string">
+              <description>Label for the displayed value.</description>
+            </parameter>
+          </group>
+          <group name="addon">
+            <struct type="Quality addon profile" link="display.origin.addons">
+              <parameter name="label" type="string">
+                <description>
+                  Label text for the information panel in the Location tab.
+                </description>
+              </parameter>
+              <parameter name="script" type="string">
+                <description>Path to the script to execute.</description>
+              </parameter>
+            </struct>
+          </group>
+        </group>
       </group>
     </configuration>
   </module>
