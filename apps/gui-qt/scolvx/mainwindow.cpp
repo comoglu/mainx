@@ -266,6 +266,20 @@ MainWindow::MainWindow() {
 	_originLocator->setConfig(locatorConfig);
 	_originLocator->setDatabase(SCApp->query());
 
+	try {
+		_originLocator->setScript0(
+			Environment::Instance()->absolutePath(
+				SCApp->configGetString("scripts.script0")));
+	}
+	catch ( ... ) {}
+
+	try {
+		_originLocator->setScript1(
+			Environment::Instance()->absolutePath(
+				SCApp->configGetString("scripts.script1")));
+	}
+	catch ( ... ) {}
+
 	QVBoxLayout *locLayout = new QVBoxLayout(_ui.tabLocation);
 	locLayout->setContentsMargins(0, 0, 0, 0);
 	locLayout->addWidget(_originLocator);

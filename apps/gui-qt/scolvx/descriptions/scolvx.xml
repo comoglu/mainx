@@ -93,6 +93,18 @@
           A list of magnitude types to be displayed in the summary panel (F8).
         </description>
       </parameter>
+      <parameter name="button0" type="string">
+        <description>
+          Label of the button that triggers the script defined in
+          "scripts.script0".
+        </description>
+      </parameter>
+      <parameter name="button1" type="string">
+        <description>
+          Label of the button that triggers the script defined in
+          "scripts.script1".
+        </description>
+      </parameter>
       <group name="scripts">
         <description>
           Names of executable scripts linked to the Publish button.
@@ -102,6 +114,18 @@
             Full path to the script which enables a Publish button in the
             summary panel on the left side of scolvx (F8). The event public
             ID is passed as the first argument.
+          </description>
+        </parameter>
+        <parameter name="script0" type="file" options="execute">
+          <description>
+            Full path to the script executed when clicking the button labeled
+            with "button0". OriginID and EventID are passed as arguments.
+          </description>
+        </parameter>
+        <parameter name="script1" type="file" options="execute">
+          <description>
+            Full path to the script executed when clicking the button labeled
+            with "button1". OriginID and EventID are passed as arguments.
           </description>
         </parameter>
         <group name="export">
@@ -389,6 +413,141 @@
             <parameter name="allowFreeText" type="boolean" default="false">
               <description>
                 Allow free text in addition to predefined values.
+              </description>
+            </parameter>
+          </struct>
+        </group>
+        <group name="customCommits">
+          <description>
+            Configure custom commit buttons that behave like shortcuts to
+            "Commit with additional options". Pressing a custom button does
+            not open a popup; it applies the configured options directly.
+            Each button can have a label and colour.
+          </description>
+          <struct name="CommitButton">
+            <parameter name="enable" type="boolean" default="true">
+              <description>Enable this commit button.</description>
+            </parameter>
+            <parameter name="askForConfirmation" type="boolean" default="false">
+              <description>
+                Present the "commit with options" dialog pre-populated from
+                this configuration. Cancelling aborts the commit.
+              </description>
+            </parameter>
+            <parameter name="forceEventAssociation" type="boolean" default="false">
+              <description>
+                Associate the new origin with the currently active event.
+              </description>
+            </parameter>
+            <parameter name="fixOrigin" type="boolean" default="false">
+              <description>
+                Fix the origin as the preferred solution.
+              </description>
+            </parameter>
+            <parameter name="eventType" type="string" default="">
+              <description>
+                Event type to set. Leave empty to leave unchanged. Use
+                quotes for types with spaces, e.g. "not existing".
+              </description>
+            </parameter>
+            <parameter name="eventTypeCertainty" type="string" default="">
+              <description>
+                Event type certainty to set. Leave empty to leave unchanged.
+              </description>
+            </parameter>
+            <parameter name="originStatus" type="string" default="">
+              <description>
+                Origin status to set. Leave empty to leave unchanged.
+              </description>
+            </parameter>
+            <parameter name="magnitudeType" type="string" default="">
+              <description>
+                Preferred magnitude type to set. Leave empty to leave
+                unchanged; set to empty string to reset the fixed type.
+              </description>
+            </parameter>
+            <parameter name="eventName" type="string" default="">
+              <description>
+                Optional event name to set.
+              </description>
+            </parameter>
+            <parameter name="eventComment" type="string" default="">
+              <description>
+                Optional event comment to set.
+              </description>
+            </parameter>
+            <parameter name="returnToEventList" type="boolean" default="false">
+              <description>Return to the event list after committing.</description>
+            </parameter>
+            <parameter name="label" type="string" default="Commit+">
+              <description>Commit button label.</description>
+            </parameter>
+            <parameter name="color" type="color" default="">
+              <description>
+                Optional primary colour for the button (hexadecimal).
+              </description>
+            </parameter>
+            <parameter name="colorText" type="color" default="">
+              <description>
+                Optional text colour for the button (hexadecimal).
+              </description>
+            </parameter>
+            <parameter name="tooltip" type="boolean" default="false">
+              <description>
+                Add a summary of the actions to the button tooltip.
+              </description>
+            </parameter>
+          </struct>
+        </group>
+        <group name="commandMenuAction">
+          <description>
+            Configuration of custom commands. Each command creates an action
+            in a "Run" menu button next to the Relocate button in the
+            Location tab. Actions appear in the order listed.
+          </description>
+          <struct type="commandMenuAction profile">
+            <description>Definition of a command menu action.</description>
+            <parameter name="enable" type="boolean" default="true">
+              <description>Controls whether this action is available.</description>
+            </parameter>
+            <parameter name="command" type="file" options="read,exec">
+              <description>
+                Command to execute. The current origin ID is passed as the
+                first argument and event ID as the second (if available).
+                The full origin may be written to stdin if an exporter is
+                configured.
+              </description>
+            </parameter>
+            <parameter name="exporter" type="string" values="scml,json,csv,binary">
+              <description>
+                SeisComP exporter used to serialise the current origin when
+                writing it to stdin. If empty, nothing is sent to stdin.
+                See 'sccnv --list-formats' for available options.
+              </description>
+            </parameter>
+            <parameter name="showProcess" type="boolean" default="false">
+              <description>
+                Automatically open the process manager when this command
+                runs. Can also be opened from the View menu.
+              </description>
+            </parameter>
+            <parameter name="text" type="string">
+              <description>
+                Name of the action shown in the launch menu and process
+                manager.
+              </description>
+            </parameter>
+            <parameter name="icon" type="file" options="read">
+              <description>Path to an icon for this action.</description>
+            </parameter>
+            <parameter name="keySequence" type="string">
+              <description>
+                Keyboard shortcut for this action, e.g. "Ctrl+Alt+A".
+              </description>
+            </parameter>
+            <parameter name="toolTip" type="string">
+              <description>
+                Tooltip shown when hovering over the button.
               </description>
             </parameter>
           </struct>
