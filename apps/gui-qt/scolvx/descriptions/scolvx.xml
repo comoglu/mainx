@@ -46,6 +46,19 @@
         <optionReference>database#inventory-db</optionReference>
         <optionReference>database#db-disable</optionReference>
       </group>
+      <group name="Records">
+        <optionReference>records#record-driver-list</optionReference>
+        <optionReference>records#record-url</optionReference>
+        <optionReference>records#record-file</optionReference>
+        <optionReference>records#record-type</optionReference>
+      </group>
+      <group name="Cities">
+        <optionReference>cities#city-xml</optionReference>
+      </group>
+      <group name="User interface">
+        <optionReference>gui#full-screen</optionReference>
+        <optionReference>gui#non-interactive</optionReference>
+      </group>
       <group name="Options">
         <option flag="O" long-flag="origin" argument="publicID"
                 publicID="scolvx#origin">
