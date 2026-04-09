@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<seiscomp>
+  <module name="scolvx" category="GUI" standalone="true">
+    <description>
+      Origin Locator X — next-generation event and origin review GUI.
+      A modern rework of scolv built on the mainx application framework,
+      featuring a cleaner layout with dedicated Location, Magnitudes, Event
+      and Events tabs. All core picking and location functionality is
+      provided by the shared SeisComP GUI library.
+    </description>
+    <command-line>
+      <group name="Generic">
+        <optionReference>generic#help</optionReference>
+        <optionReference>generic#version</optionReference>
+        <optionReference>generic#config-file</optionReference>
+        <optionReference>generic#plugins</optionReference>
+        <optionReference>generic#daemon</optionReference>
+        <optionReference>generic#auto-shutdown</optionReference>
+        <optionReference>generic#shutdown-master-module</optionReference>
+        <optionReference>generic#shutdown-master-username</optionReference>
+      </group>
+      <group name="Verbosity">
+        <optionReference>verbosity#verbosity</optionReference>
+        <optionReference>verbosity#v</optionReference>
+        <optionReference>verbosity#quiet</optionReference>
+        <optionReference>verbosity#component</optionReference>
+        <optionReference>verbosity#syslog</optionReference>
+        <optionReference>verbosity#lockfile</optionReference>
+        <optionReference>verbosity#console</optionReference>
+        <optionReference>verbosity#debug</optionReference>
+        <optionReference>verbosity#log-file</optionReference>
+      </group>
+      <group name="Messaging">
+        <optionReference>messaging#user</optionReference>
+        <optionReference>messaging#host</optionReference>
+        <optionReference>messaging#timeout</optionReference>
+        <optionReference>messaging#primary-group</optionReference>
+        <optionReference>messaging#subscribe-group</optionReference>
+        <optionReference>messaging#encoding</optionReference>
+        <optionReference>messaging#start-stop-msg</optionReference>
+      </group>
+      <group name="Database">
+        <optionReference>database#db-driver-list</optionReference>
+        <optionReference>database#database</optionReference>
+        <optionReference>database#config-module</optionReference>
+        <optionReference>database#inventory-db</optionReference>
+        <optionReference>database#db-disable</optionReference>
+      </group>
+      <group name="Options">
+        <option flag="O" long-flag="origin" argument="publicID"
+                publicID="scolvx#origin">
+          <description>Load origin with given public ID at startup.</description>
+        </option>
+        <option flag="E" long-flag="event" argument="publicID"
+                publicID="scolvx#event">
+          <description>Load event with given public ID at startup.</description>
+        </option>
+        <option long-flag="offline" publicID="scolvx#offline">
+          <description>
+            Start in offline mode. No messaging connection is established.
+          </description>
+        </option>
+        <option flag="i" long-flag="input-file" argument="file"
+                publicID="scolvx#input-file">
+          <description>
+            Load event parameters from an XML file and switch to offline mode.
+          </description>
+        </option>
+        <option long-flag="load-event-db" argument="days"
+                publicID="scolvx#load-event-db">
+          <description>
+            Override the number of days to preload from the database.
+          </description>
+        </option>
+      </group>
+    </command-line>
+    <configuration>
+      <parameter name="loadEventDB" type="double" default="1" unit="days">
+        <description>
+          Number of days to read from the database at startup.
+        </description>
+      </parameter>
+      <group name="olv">
+        <parameter name="Pvel" type="double" default="6.0" unit="km/s">
+          <description>
+            P-wave reduction velocity used in the travel-time curve display.
+          </description>
+        </parameter>
+        <parameter name="drawMapLines" type="boolean" default="true">
+          <description>
+            Draw lines from the origin to associated stations on the map.
+          </description>
+        </parameter>
+        <parameter name="drawGridLines" type="boolean" default="true">
+          <description>Draw grid lines in the polar residual plots.</description>
+        </parameter>
+        <parameter name="computeMissingTakeOffAngles" type="boolean" default="true">
+          <description>
+            Compute take-off angles for arrivals that do not have them stored.
+          </description>
+        </parameter>
+        <parameter name="computeMagnitudesAfterRelocate" type="boolean" default="false">
+          <description>
+            Automatically compute magnitudes after a relocation.
+          </description>
+        </parameter>
+        <parameter name="computeMagnitudesSilently" type="boolean" default="false">
+          <description>
+            Do not ask for confirmation before computing magnitudes automatically.
+          </description>
+        </parameter>
+        <parameter name="enableMagnitudeSelection" type="boolean" default="true">
+          <description>
+            Allow the user to select which magnitude types to compute.
+          </description>
+        </parameter>
+        <parameter name="systemTray" type="boolean" default="true">
+          <description>Show a system tray icon with event notifications.</description>
+        </parameter>
+      </group>
+      <group name="scripts">
+        <parameter name="export" type="string">
+          <description>
+            Path to a script executed when the user clicks the Publish button.
+            The event public ID is passed as the first argument.
+          </description>
+        </parameter>
+        <parameter name="export.silentTerminate" type="boolean" default="false">
+          <description>
+            Silently terminate a running export script when closing scolvx,
+            instead of asking for confirmation.
+          </description>
+        </parameter>
+      </group>
+    </configuration>
+  </module>
+</seiscomp>
