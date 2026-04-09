@@ -38,4 +38,10 @@ SC_ADD_GUI_EXECUTABLE(${PACKAGE_NAME} ${APP_NAME})
 SC_ADD_VERSION(${PACKAGE_NAME} ${APP_NAME})
 SC_LINK_LIBRARIES_INTERNAL(${APP_NAME} qt)
 
+# Re-install the binary under the scolvx component so that
+# "cmake --install . --component scolvx" also updates the executable.
+INSTALL(TARGETS ${APP_NAME}
+        RUNTIME DESTINATION ${SC3_PACKAGE_BIN_DIR}
+        COMPONENT ${APP_NAME})
+
 SC_INSTALL_INIT(${APP_NAME} ${INIT_ND_NB_TEMPLATE})
