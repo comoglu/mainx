@@ -964,7 +964,22 @@ void MainWindow::setArtificialOrigin(DataModel::Origin *origin) {
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 void MainWindow::originReferenceAdded(const std::string &eventID,
                                        DataModel::OriginReference *ref) {
-	_eventList->originReferenceAdded(eventID, ref);
+	if ( _currentOrigin && _currentOrigin->publicID() == ref->originID() ) {
+		EventPtr evt = Event::Find(eventID);
+		if ( !evt && SCApp->query() )
+			evt = Event::Cast(SCApp->query()->loadObject(Event::TypeInfo(), eventID));
+		if ( evt ) {
+			_eventID = evt->publicID();
+			if ( _magnitudes )
+				_magnitudes->setPreferredMagnitudeID(evt->preferredMagnitudeID());
+			if ( _eventEdit )
+				_eventEdit->setEvent(evt.get(), _currentOrigin.get());
+			if ( _eventSummaryPreferred )
+				_eventSummaryPreferred->setEvent(evt.get());
+			if ( _eventSummaryCurrent )
+				_eventSummaryCurrent->setEvent(evt.get());
+		}
+	}
 }
 // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
