@@ -138,6 +138,7 @@ class MainWindow : public Gui::MainWindow {
 
 		void onCitySelectionChanged();
 		void onSetRegionName();
+		void updateEventActionIndicator(Seiscomp::DataModel::Event*);
 
 
 	private:

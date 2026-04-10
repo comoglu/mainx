@@ -48,6 +48,7 @@
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QMessageBox>
+#include <QPainter>
 #include <QTabWidget>
 #include <QTableWidget>
 #include <QVBoxLayout>
@@ -477,6 +478,16 @@ MainWindow::MainWindow() {
 
 	connect(_eventList, SIGNAL(visibleEventCountChanged()),
 	        this,       SLOT(updateEventTabText()));
+
+	connect(_eventList,
+	        SIGNAL(eventAddedToList(Seiscomp::DataModel::Event*, bool)),
+	        this,
+	        SLOT(updateEventActionIndicator(Seiscomp::DataModel::Event*)));
+
+	connect(_eventList,
+	        SIGNAL(eventUpdatedInList(Seiscomp::DataModel::Event*)),
+	        this,
+	        SLOT(updateEventActionIndicator(Seiscomp::DataModel::Event*)));
 
 	// EventSummary::selected → also goes through loadOrigin
 	connect(_eventSummaryPreferred,
@@ -1189,7 +1200,99 @@ static const char *compassDir(double az) {
 	return dirs[idx];
 }
 
+// Returns true if the event requires operator action.
+// Logic mirrors the operational rules agreed for scolvx highlighting.
+static bool requiresAction(DataModel::Event *event) {
+	if ( !event ) return false;
+
+	// Load preferred origin to check its evaluation fields
+	Origin *pref = Origin::Find(event->preferredOriginID());
+
+	OPT(EvaluationMode)   mode;
+	OPT(EvaluationStatus) status;
+	if ( pref ) {
+		try { mode   = pref->evaluationMode();   } catch ( ... ) {}
+		try { status = pref->evaluationStatus(); } catch ( ... ) {}
+	}
+
+	OPT(EventType)          evtType;
+	OPT(EventTypeCertainty) certainty;
+	try { evtType   = event->type();          } catch ( ... ) {}
+	try { certainty = event->typeCertainty(); } catch ( ... ) {}
+
+	// ---- No-action conditions (take priority) --------------------------------
+	// Confirmed earthquake
+	if ( evtType && *evtType == EARTHQUAKE &&
+	     status  && *status  == CONFIRMED )
+		return false;
+	// Reviewed or Final
+	if ( status && (*status == REVIEWED || *status == FINAL) )
+		return false;
+	// Not existing with known certainty
+	if ( evtType    && *evtType    == NOT_EXISTING &&
+	     certainty  && *certainty  == KNOWN )
+		return false;
+	// Outside of network interest
+	if ( evtType && *evtType == OUTSIDE_OF_NETWORK_INTEREST )
+		return false;
+	// Quarry blast
+	if ( evtType && *evtType == QUARRY_BLAST )
+		return false;
+
+	// ---- Requires-action conditions -----------------------------------------
+	// Preliminary earthquake (assessed by DS, still needs action)
+	if ( evtType && *evtType == EARTHQUAKE &&
+	     status  && *status  == PRELIMINARY )
+		return true;
+	// Any automatic origin
+	if ( mode && *mode == AUTOMATIC )
+		return true;
+	// Rejected with no certainty set
+	if ( status && *status == REJECTED && !certainty )
+		return true;
+
+	return false;
+}
+
+static QIcon makeActionDot() {
+	QPixmap pm(12, 12);
+	pm.fill(Qt::transparent);
+	QPainter p(&pm);
+	p.setRenderHint(QPainter::Antialiasing);
+	p.setBrush(QColor(255, 140, 0));   // orange, visible on light and dark themes
+	p.setPen(Qt::NoPen);
+	p.drawEllipse(1, 1, 10, 10);
+	return QIcon(pm);
+}
+
 } // anonymous namespace
+// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+void MainWindow::updateEventActionIndicator(DataModel::Event *event) {
+	if ( !event ) return;
+
+	static QIcon dotIcon = makeActionDot();
+	static QIcon noIcon;
+
+	QTreeWidget *tree = _eventList->eventTree();
+	if ( !tree ) return;
+
+	const bool needs = requiresAction(event);
+	const std::string &eid = event->publicID();
+
+	// Scan top-level items — each is an event row
+	for ( int i = 0; i < tree->topLevelItemCount(); ++i ) {
+		QTreeWidgetItem *item = tree->topLevelItem(i);
+		Event *ev = Gui::EventListView::eventFromTreeItem(item);
+		if ( !ev || ev->publicID() != eid ) continue;
+		item->setIcon(0, needs ? dotIcon : noIcon);
+		break;
+	}
+}
 // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 
