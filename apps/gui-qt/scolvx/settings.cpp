@@ -44,6 +44,10 @@ void Settings::accept(System::Application::SettingsLinker &linker) {
 	& cfg(drawMapLines,                    "olv.drawMapLines")
 	& cfg(drawGridLines,                   "olv.drawGridLines")
 	& cfg(computeMissingTakeOffAngles,     "olv.computeMissingTakeOffAngles")
+	& cfg(citiesMaxDist,                   "cities.maxDist")
+	& cfg(citiesMaxCount,                  "cities.maxCount")
+	& cfg(citiesMinPopulation,             "cities.minPopulation")
+	& cfg(citiesJsonFile,                  "cities.jsonFile")
 	;
 }
 // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<

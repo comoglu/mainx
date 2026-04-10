@@ -948,6 +948,42 @@
           </group>
         </group>
       </group>
+      <group name="cities">
+        <description>
+          Configuration for the Nearby Cities tab shown for each origin.
+        </description>
+        <parameter name="maxDist" type="double" unit="km" default="1000">
+          <description>
+            Maximum distance in km from the origin to search for nearby cities.
+          </description>
+        </parameter>
+        <parameter name="maxCount" type="int" default="20">
+          <description>
+            Maximum number of cities to show in the Nearby Cities tab,
+            sorted by distance.
+          </description>
+        </parameter>
+        <parameter name="minPopulation" type="int" default="10000">
+          <description>
+            Minimum city population (in thousands) to include. Capital cities
+            are always included regardless of population.
+          </description>
+        </parameter>
+        <parameter name="jsonFile" type="file" options="read">
+          <description>
+            Path to an optional JSON file with additional locations to show in
+            the Nearby Cities tab alongside the built-in cities.xml entries.
+            Supports SeisComP path variables (@DATADIR@, @CONFIGDIR@,
+            @ROOTDIR@, @HOMEDIR@) and shell environment variables
+            ($VAR or ${VAR}). Example:
+            $EATWS_SHARE_FOLDER/locations.json
+            or @DATADIR@/locations.json.
+            The JSON must be an array of objects with at minimum the fields
+            "name", "lat", and "lon". Optional fields: "type", "state",
+            "country", "population".
+          </description>
+        </parameter>
+      </group>
     </configuration>
   </module>
 </seiscomp>

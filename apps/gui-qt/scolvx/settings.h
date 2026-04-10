@@ -41,6 +41,12 @@ struct Settings : System::Application::AbstractSettings {
 	bool        drawMapLines{true};
 	bool        drawGridLines{true};
 	bool        computeMissingTakeOffAngles{true};
+
+	// Nearby cities tab
+	double      citiesMaxDist{1000.0};
+	int         citiesMaxCount{20};
+	int         citiesMinPopulation{10000};
+	std::string citiesJsonFile;
 };
 
 

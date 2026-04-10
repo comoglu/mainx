@@ -16,6 +16,8 @@
 #ifndef SEISCOMP_OLOCX_MAINWINDOW_H
 #define SEISCOMP_OLOCX_MAINWINDOW_H
 
+#include <vector>
+
 
 #include <seiscomp/gui/core/mainwindow.h>
 #ifndef Q_MOC_RUN
@@ -32,6 +34,20 @@
 
 
 namespace Seiscomp {
+namespace OLocX {
+
+struct JsonLocation {
+	std::string name;
+	std::string type;
+	std::string state;
+	std::string country;
+	double lat{0.0};
+	double lon{0.0};
+	double population{0.0};
+};
+
+}
+
 namespace Gui {
 
 class EventListView;
@@ -119,10 +135,20 @@ class MainWindow : public Gui::MainWindow {
 		void trayIconActivated(QSystemTrayIcon::ActivationReason);
 		void trayIconMessageClicked();
 
+		void onCitySelectionChanged();
+		void onSetRegionName();
+
 
 	private:
 		bool populateOrigin(Seiscomp::DataModel::Origin*,
 		                    Seiscomp::DataModel::Event*, bool);
+		void updateCitiesTab(Seiscomp::DataModel::Origin *origin);
+		void loadJsonLocations();
+		void updateRegionPreview();
+		QString formatRegionName(const QString &name, const QString &state,
+		                         const QString &country, int distKm,
+		                         const QString &dir) const;
+		void updateCurrentRegionLabel(Seiscomp::DataModel::Event *event);
 
 		Seiscomp::DataModel::EventParametersPtr
 		    _createEventParametersForPublication(
@@ -148,6 +174,7 @@ class MainWindow : public Gui::MainWindow {
 
 		bool                              _offline{false};
 		std::string                       _eventID;
+		std::vector<JsonLocation>         _jsonLocations;
 		QWidget                          *_currentTabWidget{nullptr};
 		QProcess                          _exportProcess;
 		QAction                          *_actionConfigureAcquisition{nullptr};
