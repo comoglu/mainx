@@ -1455,7 +1455,7 @@ void MainWindow::updateCitiesTab(DataModel::Origin *origin) {
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 void MainWindow::setOrigin(DataModel::Origin *origin,
                            DataModel::Event  *event,
-                           bool newOrigin, bool) {
+                           bool newOrigin, bool relocated) {
 	// Called from newOriginSet — the locator already owns the origin.
 	// Do NOT call _originLocator->setOrigin() here (would re-trigger the signal).
 	if ( !origin ) return;
@@ -1478,6 +1478,12 @@ void MainWindow::setOrigin(DataModel::Origin *origin,
 
 	updateCitiesTab(origin);
 	updateCurrentRegionLabel(event);
+
+	// Auto-compute magnitudes after relocation when configured and no
+	// magnitudes exist yet — mirrors scolv mainframe.cpp behaviour
+	if ( newOrigin && relocated && global.computeMagnitudesAfterRelocate
+	     && origin->magnitudeCount() == 0 )
+		_originLocator->computeMagnitudes();
 
 	_ui.tabWidget->setCurrentWidget(_ui.tabLocation);
 }
