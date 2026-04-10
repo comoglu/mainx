@@ -39,7 +39,8 @@ namespace OLocX {
 struct JsonLocation {
 	std::string name;
 	std::string type;
-	std::string state;
+	std::string state;      // short form, e.g. "QLD"
+	std::string stateFull;  // long form, e.g. "Queensland"
 	std::string country;
 	double lat{0.0};
 	double lon{0.0};

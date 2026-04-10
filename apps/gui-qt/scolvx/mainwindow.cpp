@@ -969,6 +969,7 @@ void MainWindow::loadJsonLocations() {
 		loc.name       = obj.value("name").toString().toStdString();
 		loc.type       = obj.value("type").toString().toStdString();
 		loc.state      = obj.value("state").toString().toStdString();
+		loc.stateFull  = obj.value("state_full").toString().toStdString();
 		loc.country    = obj.value("country").toString().toStdString();
 		loc.lat        = obj.value("lat").toDouble();
 		loc.lon        = obj.value("lon").toDouble();
@@ -1010,7 +1011,8 @@ void MainWindow::updateCurrentRegionLabel(DataModel::Event *event) {
 QString MainWindow::formatRegionName(const QString &name, const QString &state,
                                      const QString &country, int distKm,
                                      const QString &dir) const {
-	// Choose the most informative location string: prefer state, fall back country
+	// state already holds the best available value (state_full > state > "")
+	// fall back to country if neither is available
 	QString loc = !state.isEmpty() ? state : country;
 
 	switch ( _ui.regionFormatCombo->currentIndex() ) {
@@ -1211,7 +1213,7 @@ void MainWindow::updateCitiesTab(DataModel::Origin *origin) {
 		double  az;
 		QString name;
 		QString type;
-		QString state;
+		QString state;      // display value: stateFull ?? state ?? ""
 		QString country;
 		double  population;
 		bool    isCapital;
@@ -1252,11 +1254,16 @@ void MainWindow::updateCitiesTab(DataModel::Origin *origin) {
 
 		if ( loc.population < global.citiesMinPopulation ) continue;
 
+		// State column: prefer state_full (long) over state (short)
+		QString stateDisplay = !loc.stateFull.empty()
+		    ? QString::fromStdString(loc.stateFull)
+		    : QString::fromStdString(loc.state);
+
 		entries.push_back({
 		    Math::Geo::deg2km(dist), az,
 		    QString::fromStdString(loc.name),
 		    QString::fromStdString(loc.type),
-		    QString::fromStdString(loc.state),
+		    stateDisplay,
 		    QString::fromStdString(loc.country),
 		    loc.population,
 		    false   // JSON locations have no capital flag
