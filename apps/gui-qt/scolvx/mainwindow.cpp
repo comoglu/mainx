@@ -1252,7 +1252,8 @@ void MainWindow::updateCitiesTab(DataModel::Origin *origin) {
 		                  &dist, &az);
 		if ( dist > maxDistDeg ) continue;
 
-		if ( loc.population < global.citiesMinPopulation ) continue;
+		// Only apply population filter when population is known (> 0)
+		if ( loc.population > 0 && loc.population < global.citiesMinPopulation ) continue;
 
 		// State column: prefer state_full (long) over state (short)
 		QString stateDisplay = !loc.stateFull.empty()
