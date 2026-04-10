@@ -47,6 +47,7 @@ struct Settings : System::Application::AbstractSettings {
 	int         citiesMaxCount{20};
 	int         citiesMinPopulation{10000};
 	std::string citiesJsonFile;
+	bool        citiesUseFullState{true};
 };
 
 

@@ -622,6 +622,7 @@ MainWindow::MainWindow() {
 	connect(_ui.citiesUseFullState, &QCheckBox::toggled,
 	        this, [this](bool){ updateCitiesTab(_currentOrigin.get()); });
 
+	_ui.citiesUseFullState->setChecked(global.citiesUseFullState);
 	loadJsonLocations();
 
 	SCApp->settings().endGroup();

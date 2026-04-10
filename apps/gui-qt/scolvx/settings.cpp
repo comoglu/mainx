@@ -48,6 +48,7 @@ void Settings::accept(System::Application::SettingsLinker &linker) {
 	& cfg(citiesMaxCount,                  "cities.maxCount")
 	& cfg(citiesMinPopulation,             "cities.minPopulation")
 	& cfg(citiesJsonFile,                  "cities.jsonFile")
+	& cfg(citiesUseFullState,              "cities.useFullState")
 	;
 }
 // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<

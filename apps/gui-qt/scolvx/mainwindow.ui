@@ -98,9 +98,6 @@
              <property name="text">
               <string>Full state name</string>
              </property>
-             <property name="checked">
-              <bool>true</bool>
-             </property>
              <property name="toolTip">
               <string>Show full state name (e.g. Queensland) instead of abbreviation (e.g. QLD)</string>
              </property>

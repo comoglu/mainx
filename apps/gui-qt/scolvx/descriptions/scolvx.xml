@@ -969,6 +969,14 @@
             are always included regardless of population.
           </description>
         </parameter>
+        <parameter name="useFullState" type="boolean" default="true">
+          <description>
+            If true (default), the State column and region name formats use
+            the full state name (e.g. Queensland). If false, the short
+            abbreviation is used (e.g. QLD). Can also be toggled at runtime
+            via the checkbox in the Nearby Cities tab.
+          </description>
+        </parameter>
         <parameter name="jsonFile" type="file" options="read">
           <description>
             Path to an optional JSON file with additional locations to show in
