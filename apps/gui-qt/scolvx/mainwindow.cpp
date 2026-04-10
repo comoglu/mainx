@@ -866,11 +866,38 @@ void MainWindow::objectRemoved(const QString &parentID, DataModel::Object *obj) 
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 void MainWindow::objectUpdated(const QString &, DataModel::Object *obj) {
 	Event *event = Event::Cast(obj);
-	if ( event && event->publicID() == _eventID ) {
-		if ( _currentOrigin &&
-		     _currentOrigin->publicID() == event->preferredOriginID() ) {
-			_magnitudes->setPreferredMagnitudeID(event->preferredMagnitudeID());
+	if ( event ) {
+		if ( event->publicID() == _eventID ) {
+			if ( _currentOrigin &&
+			     _currentOrigin->publicID() == event->preferredOriginID() ) {
+				_magnitudes->setPreferredMagnitudeID(event->preferredMagnitudeID());
+			}
 		}
+		// Refresh the action indicator whenever any event record changes
+		// (type, typeCertainty, preferredOriginID, etc.)
+		updateEventActionIndicator(event);
+		return;
+	}
+
+	// When an origin's evaluation status/mode changes, find its parent event
+	// and refresh the indicator for that event row.
+	Origin *origin = Origin::Cast(obj);
+	if ( origin ) {
+		Event *ev = nullptr;
+		// Walk all top-level tree items to find which event owns this origin
+		QTreeWidget *tree = _eventList->eventTree();
+		if ( tree ) {
+			for ( int i = 0; i < tree->topLevelItemCount(); ++i ) {
+				Event *candidate = Gui::EventListView::eventFromTreeItem(
+				    tree->topLevelItem(i));
+				if ( candidate &&
+				     candidate->preferredOriginID() == origin->publicID() ) {
+					ev = candidate;
+					break;
+				}
+			}
+		}
+		if ( ev ) updateEventActionIndicator(ev);
 		return;
 	}
 }
