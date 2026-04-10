@@ -619,6 +619,8 @@ MainWindow::MainWindow() {
 	        this, &MainWindow::onSetRegionName);
 	connect(_ui.citiesHamletFilter, &QCheckBox::toggled,
 	        this, [this](bool){ updateCitiesTab(_currentOrigin.get()); });
+	connect(_ui.citiesUseFullState, &QCheckBox::toggled,
+	        this, [this](bool){ updateCitiesTab(_currentOrigin.get()); });
 
 	loadJsonLocations();
 
@@ -1255,8 +1257,9 @@ void MainWindow::updateCitiesTab(DataModel::Origin *origin) {
 		// Only apply population filter when population is known (> 0)
 		if ( loc.population > 0 && loc.population < global.citiesMinPopulation ) continue;
 
-		// State column: prefer state_full (long) over state (short)
-		QString stateDisplay = !loc.stateFull.empty()
+		// State column: use full name or abbreviation per checkbox
+		bool useFullState = _ui.citiesUseFullState->isChecked();
+		QString stateDisplay = (useFullState && !loc.stateFull.empty())
 		    ? QString::fromStdString(loc.stateFull)
 		    : QString::fromStdString(loc.state);
 
