@@ -1337,10 +1337,14 @@ bool MainWindow::evaluateCondition(const std::string &condition,
 		trim(token);
 
 		if ( !token.empty() ) {
-			size_t eq = token.find('=');
+			// Detect operator: != or =
+			size_t neq = token.find("!=");
+			size_t eq  = token.find('=');
 			if ( eq == std::string::npos ) return false;
 
-			std::string key = token.substr(0, eq);
+			bool negate = (neq != std::string::npos && neq + 1 == eq);
+			std::string key = negate ? token.substr(0, neq)
+			                         : token.substr(0, eq);
 			std::string val = token.substr(eq + 1);
 			trim(key); trim(val);
 			std::transform(key.begin(), key.end(), key.begin(), ::tolower);
@@ -1354,7 +1358,8 @@ bool MainWindow::evaluateCondition(const std::string &condition,
 			else if ( key == "typecertainty" )     actual = certaintyStr();
 			else return false;  // unknown key → no match
 
-			if ( actual != val ) return false;
+			bool matches = (actual == val);
+			if ( negate ? matches : !matches ) return false;
 		}
 
 		if ( end == std::string::npos ) break;
