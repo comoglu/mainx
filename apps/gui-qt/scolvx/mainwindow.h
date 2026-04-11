@@ -27,14 +27,22 @@
 #include <seiscomp/datamodel/journaling.h>
 #endif
 
+#include <QColor>
 #include <QProcess>
 #include <QSystemTrayIcon>
+#include <QTreeWidgetItem>
 
 #include "ui_mainwindow.h"
 
 
 namespace Seiscomp {
 namespace OLocX {
+
+struct HighlightRule {
+	std::string condition;   // e.g. "type=earthquake && evaluationStatus=preliminary"
+	QColor      background;
+	QColor      foreground;
+};
 
 struct JsonLocation {
 	std::string name;
@@ -138,7 +146,7 @@ class MainWindow : public Gui::MainWindow {
 
 		void onCitySelectionChanged();
 		void onSetRegionName();
-		void updateEventActionIndicator(Seiscomp::DataModel::Event*);
+		void updateEventHighlight(Seiscomp::DataModel::Event*);
 
 
 	private:
@@ -151,6 +159,14 @@ class MainWindow : public Gui::MainWindow {
 		                         const QString &country, int distKm,
 		                         const QString &dir) const;
 		void updateCurrentRegionLabel(Seiscomp::DataModel::Event *event);
+
+		void loadHighlightRules();
+		bool evaluateCondition(const std::string &condition,
+		                       Seiscomp::DataModel::Event *event,
+		                       Seiscomp::DataModel::Origin *origin) const;
+		void applyHighlight(QTreeWidgetItem *item,
+		                    Seiscomp::DataModel::Event *event,
+		                    Seiscomp::DataModel::Origin *origin) const;
 
 		Seiscomp::DataModel::EventParametersPtr
 		    _createEventParametersForPublication(
@@ -177,6 +193,7 @@ class MainWindow : public Gui::MainWindow {
 		bool                              _offline{false};
 		std::string                       _eventID;
 		std::vector<JsonLocation>         _jsonLocations;
+		std::vector<HighlightRule>        _highlightRules;
 		QWidget                          *_currentTabWidget{nullptr};
 		QProcess                          _exportProcess;
 		QAction                          *_actionConfigureAcquisition{nullptr};

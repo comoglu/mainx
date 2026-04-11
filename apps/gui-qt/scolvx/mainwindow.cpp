@@ -482,12 +482,12 @@ MainWindow::MainWindow() {
 	connect(_eventList,
 	        SIGNAL(eventAddedToList(Seiscomp::DataModel::Event*, bool)),
 	        this,
-	        SLOT(updateEventActionIndicator(Seiscomp::DataModel::Event*)));
+	        SLOT(updateEventHighlight(Seiscomp::DataModel::Event*)));
 
 	connect(_eventList,
 	        SIGNAL(eventUpdatedInList(Seiscomp::DataModel::Event*)),
 	        this,
-	        SLOT(updateEventActionIndicator(Seiscomp::DataModel::Event*)));
+	        SLOT(updateEventHighlight(Seiscomp::DataModel::Event*)));
 
 	// EventSummary::selected → also goes through loadOrigin
 	connect(_eventSummaryPreferred,
@@ -634,6 +634,7 @@ MainWindow::MainWindow() {
 	        this, [this](bool){ updateCitiesTab(_currentOrigin.get()); });
 
 	_ui.citiesUseFullState->setChecked(global.citiesUseFullState);
+	loadHighlightRules();
 	loadJsonLocations();
 
 	SCApp->settings().endGroup();
@@ -875,7 +876,7 @@ void MainWindow::objectUpdated(const QString &, DataModel::Object *obj) {
 		}
 		// Refresh the action indicator whenever any event record changes
 		// (type, typeCertainty, preferredOriginID, etc.)
-		updateEventActionIndicator(event);
+		updateEventHighlight(event);
 		return;
 	}
 
@@ -897,7 +898,7 @@ void MainWindow::objectUpdated(const QString &, DataModel::Object *obj) {
 				}
 			}
 		}
-		if ( ev ) updateEventActionIndicator(ev);
+		if ( ev ) updateEventHighlight(ev);
 		return;
 	}
 }
@@ -1227,66 +1228,12 @@ static const char *compassDir(double az) {
 	return dirs[idx];
 }
 
-// Returns true if the event requires operator action.
-// Logic mirrors the operational rules agreed for scolvx highlighting.
-static bool requiresAction(DataModel::Event *event) {
-	if ( !event ) return false;
-
-	// Load preferred origin to check its evaluation fields
-	Origin *pref = Origin::Find(event->preferredOriginID());
-
-	OPT(EvaluationMode)   mode;
-	OPT(EvaluationStatus) status;
-	if ( pref ) {
-		try { mode   = pref->evaluationMode();   } catch ( ... ) {}
-		try { status = pref->evaluationStatus(); } catch ( ... ) {}
-	}
-
-	OPT(EventType)          evtType;
-	OPT(EventTypeCertainty) certainty;
-	try { evtType   = event->type();          } catch ( ... ) {}
-	try { certainty = event->typeCertainty(); } catch ( ... ) {}
-
-	// ---- No-action conditions (take priority) --------------------------------
-	// Confirmed earthquake
-	if ( evtType && *evtType == EARTHQUAKE &&
-	     status  && *status  == CONFIRMED )
-		return false;
-	// Reviewed or Final
-	if ( status && (*status == REVIEWED || *status == FINAL) )
-		return false;
-	// Not existing with known certainty
-	if ( evtType    && *evtType    == NOT_EXISTING &&
-	     certainty  && *certainty  == KNOWN )
-		return false;
-	// Outside of network interest
-	if ( evtType && *evtType == OUTSIDE_OF_NETWORK_INTEREST )
-		return false;
-	// Quarry blast
-	if ( evtType && *evtType == QUARRY_BLAST )
-		return false;
-
-	// ---- Requires-action conditions -----------------------------------------
-	// Preliminary earthquake (assessed by DS, still needs action)
-	if ( evtType && *evtType == EARTHQUAKE &&
-	     status  && *status  == PRELIMINARY )
-		return true;
-	// Any automatic origin
-	if ( mode && *mode == AUTOMATIC )
-		return true;
-	// Rejected with no certainty set
-	if ( status && *status == REJECTED && !certainty )
-		return true;
-
-	return false;
-}
-
 static QIcon makeActionDot() {
 	QPixmap pm(12, 12);
 	pm.fill(Qt::transparent);
 	QPainter p(&pm);
 	p.setRenderHint(QPainter::Antialiasing);
-	p.setBrush(QColor(255, 140, 0));   // orange, visible on light and dark themes
+	p.setBrush(QColor(255, 140, 0));
 	p.setPen(Qt::NoPen);
 	p.drawEllipse(1, 1, 10, 10);
 	return QIcon(pm);
@@ -1299,24 +1246,183 @@ static QIcon makeActionDot() {
 
 
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-void MainWindow::updateEventActionIndicator(DataModel::Event *event) {
-	if ( !event ) return;
+// Load highlight rules from config.
+// Expected format:
+//   eventlist.highlight = rule1, rule2
+//   eventlist.highlight.rule1.condition  = "type=earthquake && evaluationStatus=preliminary"
+//   eventlist.highlight.rule1.background = 255,165,0
+//   eventlist.highlight.rule1.foreground = 0,0,0
+void MainWindow::loadHighlightRules() {
+	_highlightRules.clear();
 
+	std::vector<std::string> names;
+	try {
+		names = SCApp->configGetStrings("eventlist.highlight");
+	}
+	catch ( ... ) { return; }
+
+	for ( const auto &name : names ) {
+		HighlightRule rule;
+		const std::string base = "eventlist.highlight." + name;
+
+		try { rule.condition = SCApp->configGetString(base + ".condition"); }
+		catch ( ... ) { continue; }   // condition is mandatory
+
+		rule.background = SCApp->configGetColor(base + ".background", QColor());
+		rule.foreground = SCApp->configGetColor(base + ".foreground", QColor());
+
+		_highlightRules.push_back(std::move(rule));
+	}
+
+	SEISCOMP_INFO("Loaded %zu event highlight rule(s)", _highlightRules.size());
+}
+// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// Evaluate a single condition string against an event + its preferred origin.
+// Supports tokens joined by &&, each of the form key=value or key=none.
+// Supported keys: type, evaluationStatus, evaluationMode, typeCertainty.
+bool MainWindow::evaluateCondition(const std::string &condition,
+                                   DataModel::Event  *event,
+                                   DataModel::Origin *origin) const {
+	auto normalise = [](std::string s) -> std::string {
+		std::transform(s.begin(), s.end(), s.begin(), ::tolower);
+		std::replace(s.begin(), s.end(), ' ', '-');
+		std::replace(s.begin(), s.end(), '_', '-');
+		return s;
+	};
+
+	// Collect event/origin values as lowercase strings for comparison
+	auto evtTypeStr = [&]() -> std::string {
+		try { return normalise(event->type().toString()); }
+		catch ( ... ) { return "none"; }
+	};
+	auto evalStatusStr = [&]() -> std::string {
+		if ( !origin ) return "none";
+		try { return normalise(origin->evaluationStatus().toString()); }
+		catch ( ... ) { return "none"; }
+	};
+	auto evalModeStr = [&]() -> std::string {
+		if ( !origin ) return "none";
+		try { return normalise(origin->evaluationMode().toString()); }
+		catch ( ... ) { return "none"; }
+	};
+	auto certaintyStr = [&]() -> std::string {
+		try { return normalise(event->typeCertainty().toString()); }
+		catch ( ... ) { return "none"; }
+	};
+
+	// Split on &&
+	std::string cond = condition;
+	// Strip quotes if present
+	if ( cond.size() >= 2 && cond.front() == '"' && cond.back() == '"' )
+		cond = cond.substr(1, cond.size() - 2);
+
+	size_t pos = 0;
+	while ( pos <= cond.size() ) {
+		size_t end = cond.find("&&", pos);
+		std::string token = (end == std::string::npos)
+		                    ? cond.substr(pos)
+		                    : cond.substr(pos, end - pos);
+
+		// Trim whitespace
+		auto trim = [](std::string &s) {
+			size_t a = s.find_first_not_of(" \t");
+			size_t b = s.find_last_not_of(" \t");
+			s = (a == std::string::npos) ? "" : s.substr(a, b - a + 1);
+		};
+		trim(token);
+
+		if ( !token.empty() ) {
+			size_t eq = token.find('=');
+			if ( eq == std::string::npos ) return false;
+
+			std::string key = token.substr(0, eq);
+			std::string val = token.substr(eq + 1);
+			trim(key); trim(val);
+			std::transform(key.begin(), key.end(), key.begin(), ::tolower);
+			std::transform(val.begin(), val.end(), val.begin(), ::tolower);
+			std::replace(val.begin(), val.end(), '_', '-');
+
+			std::string actual;
+			if      ( key == "type" )              actual = evtTypeStr();
+			else if ( key == "evaluationstatus" )  actual = evalStatusStr();
+			else if ( key == "evaluationmode" )    actual = evalModeStr();
+			else if ( key == "typecertainty" )     actual = certaintyStr();
+			else return false;  // unknown key → no match
+
+			if ( actual != val ) return false;
+		}
+
+		if ( end == std::string::npos ) break;
+		pos = end + 2;
+	}
+
+	return true;
+}
+// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// Apply the first matching highlight rule to all columns of the tree item.
+// Also sets/clears the dot icon on column 0.
+void MainWindow::applyHighlight(QTreeWidgetItem     *item,
+                                DataModel::Event    *event,
+                                DataModel::Origin   *origin) const {
 	static QIcon dotIcon = makeActionDot();
 	static QIcon noIcon;
+
+	// Find first matching rule
+	const HighlightRule *matched = nullptr;
+	for ( const auto &rule : _highlightRules ) {
+		if ( evaluateCondition(rule.condition, event, origin) ) {
+			matched = &rule;
+			break;
+		}
+	}
+
+	int cols = item->columnCount();
+	for ( int c = 0; c < cols; ++c ) {
+		if ( matched ) {
+			if ( matched->background.isValid() )
+				item->setBackground(c, matched->background);
+			if ( matched->foreground.isValid() )
+				item->setForeground(c, matched->foreground);
+		}
+		else {
+			// Clear any previously applied highlight
+			item->setData(c, Qt::BackgroundRole, QVariant());
+			item->setData(c, Qt::ForegroundRole, QVariant());
+		}
+	}
+
+	item->setIcon(0, matched ? dotIcon : noIcon);
+}
+// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+void MainWindow::updateEventHighlight(DataModel::Event *event) {
+	if ( !event ) return;
 
 	QTreeWidget *tree = _eventList->eventTree();
 	if ( !tree ) return;
 
-	const bool needs = requiresAction(event);
+	Origin *origin = Origin::Find(event->preferredOriginID());
 	const std::string &eid = event->publicID();
 
-	// Scan top-level items — each is an event row
 	for ( int i = 0; i < tree->topLevelItemCount(); ++i ) {
 		QTreeWidgetItem *item = tree->topLevelItem(i);
 		Event *ev = Gui::EventListView::eventFromTreeItem(item);
 		if ( !ev || ev->publicID() != eid ) continue;
-		item->setIcon(0, needs ? dotIcon : noIcon);
+		applyHighlight(item, event, origin);
 		break;
 	}
 }
