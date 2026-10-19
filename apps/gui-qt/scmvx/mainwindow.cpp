@@ -33,6 +33,7 @@
 #include <seiscomp/gui/core/utils.h>
 #include <seiscomp/gui/datamodel/eventlayer.h>
 #include <seiscomp/gui/datamodel/origindialog.h>
+#include <seiscomp/datamodel/utils.h>
 #include <seiscomp/io/archive/xmlarchive.h>
 
 #include <QAction>
@@ -69,6 +70,7 @@
 #include "map/networklayer.h"
 #include "map/eventlayer.h"
 #include "map/eventheatlayer.h"
+#include "map/recenteventslayer.h"
 #include "map/currenteventlayer.h"
 #include "map/scalelayer.h"
 
@@ -198,6 +200,31 @@ MainWindow::MainWindow(QWidget *parent, Qt::WindowFlags f)
 
 	connect(_ui.actionShowGrayscale, SIGNAL(toggled(bool)), _mapWidget, SLOT(setGrayScale(bool)));
 	connect(_ui.actionShowLatestEvent, SIGNAL(toggled(bool)), _currentEventLayer, SLOT(setVisible(bool)));
+
+	_recentEventsLayer = new RecentEventsLayer(_mapWidget);
+	_recentEventsLayer->setVisible(global.recentEventCount > 0);
+	if ( global.recentEventPosition == "topleft" ) {
+		_recentEventsLayer->legend()->setArea(Qt::AlignLeft | Qt::AlignTop);
+	}
+	else if ( global.recentEventPosition == "topright" ) {
+		_recentEventsLayer->legend()->setArea(Qt::AlignRight | Qt::AlignTop);
+	}
+	else if ( global.recentEventPosition == "bottomright" ) {
+		_recentEventsLayer->legend()->setArea(Qt::AlignRight | Qt::AlignBottom);
+	}
+	connect(_recentEventsLayer, SIGNAL(clicked(std::string)),
+	        this, SLOT(centerOnEvent(std::string)),
+	        Qt::QueuedConnection);
+	connect(_recentEventsLayer, SIGNAL(doubleClicked(std::string)),
+	        this, SLOT(showCurrentEventDetails(std::string)),
+	        Qt::QueuedConnection);
+
+	auto actionShowRecentEvents = new QAction(tr("Show recent events on map"), this);
+	actionShowRecentEvents->setCheckable(true);
+	actionShowRecentEvents->setChecked(_recentEventsLayer->isVisible());
+	actionShowRecentEvents->setEnabled(global.recentEventCount > 0);
+	_ui.menuView->insertAction(_ui.actionShowMapLegend, actionShowRecentEvents);
+	connect(actionShowRecentEvents, SIGNAL(toggled(bool)), _recentEventsLayer, SLOT(setVisible(bool)));
 	connect(_ui.actionShowMapLegend, SIGNAL(toggled(bool)), _mapWidget, SLOT(setDrawLegends(bool)));
 	connect(&_mapWidget->canvas(), SIGNAL(legendVisibilityChanged(bool)), _ui.actionShowMapLegend, SLOT(setChecked(bool)));
 	_mapWidget->addAction(_actionToggleFullScreen);
@@ -238,6 +265,8 @@ MainWindow::MainWindow(QWidget *parent, Qt::WindowFlags f)
 	        _eventLayer, SLOT(removeEvent(Seiscomp::DataModel::Event*)));
 	connect(_eventLayer, SIGNAL(eventHovered(std::string)),
 	        this, SLOT(hoverEvent(std::string)));
+	connect(_eventLayer, SIGNAL(eventHovered(std::string)),
+	        _recentEventsLayer, SLOT(setHighlightedEvent(std::string)));
 	connect(_eventLayer, SIGNAL(eventSelected(std::string)),
 	        this, SLOT(selectEvent(std::string)),
 	        Qt::QueuedConnection);
@@ -262,6 +291,16 @@ MainWindow::MainWindow(QWidget *parent, Qt::WindowFlags f)
 		populateNetworksMenu(networksMenu);
 		menu->addMenu(networksMenu);
 	});
+
+	if ( global.statusLegendPosition == "topleft" ) {
+		_networkLayer->statusLegend()->setArea(Qt::AlignLeft | Qt::AlignTop);
+	}
+	else if ( global.statusLegendPosition == "bottomright" ) {
+		_networkLayer->statusLegend()->setArea(Qt::AlignRight | Qt::AlignBottom);
+	}
+	else if ( global.statusLegendPosition == "bottomleft" ) {
+		_networkLayer->statusLegend()->setArea(Qt::AlignLeft | Qt::AlignBottom);
+	}
 
 	if ( global.stationLegendPosition == "topleft" ) {
 		_networkLayer->mainLegend()->setArea(Qt::AlignLeft | Qt::AlignTop);
@@ -395,6 +434,7 @@ MainWindow::MainWindow(QWidget *parent, Qt::WindowFlags f)
 	_mapWidget->canvas().addLayer(_annotationLayer);
 	_mapWidget->canvas().addLayer(new ScaleLayer);
 	_mapWidget->canvas().addLayer(_currentEventLayer);
+	_mapWidget->canvas().addLayer(_recentEventsLayer);
 
 	_ui.menuSettings->addAction(this->_actionShowSettings);
 	_ui.menuView->insertAction(_ui.actionShowChannelCodes, this->_actionToggleFullScreen);
@@ -568,6 +608,11 @@ void MainWindow::timeout() {
 	_networkLayer->tick();
 	_eventLayer->tick();
 	_currentEventLayer->tick();
+
+	if ( _recentEventsDirty ) {
+		updateRecentEvents();
+	}
+	_recentEventsLayer->tick();
 }
 // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -687,6 +732,8 @@ void MainWindow::addObject(const QString &, DataModel::Object *obj) {
 
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 void MainWindow::eventAdded(DataModel::Event *obj, bool) {
+	_recentEventsDirty = true;
+
 	try {
 		if ( SCApp->isAgencyIDBlocked(obj->creationInfo().agencyID()) ) {
 			return;
@@ -724,6 +771,8 @@ void MainWindow::eventUpdated(DataModel::Event *evt) {
 
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 void MainWindow::eventRemoved(DataModel::Event *evt) {
+	_recentEventsDirty = true;
+
 	if ( _latestEvent && _latestEvent.event->publicID() == evt->publicID() ) {
 		_latestEvent.reset();
 		updateCurrentEvent();
@@ -736,6 +785,8 @@ void MainWindow::eventRemoved(DataModel::Event *evt) {
 
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 void MainWindow::eventsUpdated() {
+	_recentEventsDirty = true;
+
 	if ( _latestEvent ) return;
 
 	// Check for a new latest event after the event list finished to update
@@ -775,6 +826,8 @@ void MainWindow::eventsUpdated() {
 
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 void MainWindow::eventsCleared() {
+	_recentEventsDirty = true;
+
 	_latestEvent.reset();
 	updateCurrentEvent();
 }
@@ -795,6 +848,105 @@ void MainWindow::updateCurrentEvent() {
 	else {
 		_eventLayer->setCurrentEvent(nullptr);
 		_currentEventLayer->setEvent(nullptr);
+	}
+}
+// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+void MainWindow::updateRecentEvents() {
+	_recentEventsDirty = false;
+
+	if ( global.recentEventCount <= 0 ) {
+		return;
+	}
+
+	QVector<RecentEventsLayer::Item> items;
+
+	// Use the events of the event list including its filters
+	QTreeWidget *eventTree = _eventListView->eventTree();
+	int count = eventTree->topLevelItemCount();
+
+	for ( int i = 0; i < count; ++i ) {
+		if ( eventTree->topLevelItem(i)->isHidden() ) {
+			continue;
+		}
+
+		auto *evt = _eventListView->eventFromTreeItem(eventTree->topLevelItem(i));
+		if ( !evt ) {
+			continue;
+		}
+
+		try {
+			if ( SCApp->isAgencyIDBlocked(evt->creationInfo().agencyID()) ) {
+				continue;
+			}
+		}
+		catch ( ... ) {}
+
+		dm::OriginPtr origin = _cache.get<dm::Origin>(evt->preferredOriginID());
+		if ( !origin ) {
+			continue;
+		}
+
+		RecentEventsLayer::Item item;
+		item.eventID = evt->publicID();
+
+		try {
+			item.originTime = origin->time().value();
+		}
+		catch ( ... ) {
+			continue;
+		}
+
+		try {
+			item.depth = origin->depth().value();
+		}
+		catch ( ... ) {}
+
+		dm::MagnitudePtr magnitude = _cache.get<dm::Magnitude>(evt->preferredMagnitudeID());
+		if ( magnitude ) {
+			try {
+				item.magnitude = magnitude->magnitude().value();
+			}
+			catch ( ... ) {}
+			item.magnitudeType = magnitude->type().c_str();
+		}
+
+		item.region = dm::eventRegion(evt).c_str();
+		items.append(item);
+	}
+
+	std::sort(items.begin(), items.end(),
+	          [](const RecentEventsLayer::Item &a, const RecentEventsLayer::Item &b) {
+	          	return a.originTime > b.originTime;
+	          });
+
+	if ( items.size() > global.recentEventCount ) {
+		items.resize(global.recentEventCount);
+	}
+
+	_recentEventsLayer->setItems(items);
+}
+// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+void MainWindow::centerOnEvent(const std::string &eventID) {
+	dm::EventPtr event = _cache.get<dm::Event>(eventID);
+	if ( !event ) {
+		return;
+	}
+
+	dm::OriginPtr origin = _cache.get<dm::Origin>(event->preferredOriginID());
+	if ( origin ) {
+		_mapWidget->canvas().setMapCenter(
+			QPointF(origin->longitude().value(), origin->latitude().value())
+		);
 	}
 }
 // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<

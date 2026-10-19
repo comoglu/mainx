@@ -52,6 +52,14 @@
 				The legend location for event symbols.
 				</description>
 			</parameter>
+			<parameter name="statusLegendPosition" type="string" default="topright" values="topleft,topright,bottomright,bottomleft">
+				<description>
+				The location of the network status legend summarizing station
+				configuration issues, data delays and latencies of the visible
+				stations. Legends at the same location are stacked and can be
+				switched by the arrows in their header.
+				</description>
+			</parameter>
 			<group name="display">
 				<description>
 				The initial rectangular region for the map. The eventual region
@@ -81,6 +89,24 @@
 					be toggelt interactively by the View menu.
 					</description>
 				</parameter>
+				<group name="recentList">
+					<description>
+					Legend listing the most recent events. Clicking an event
+					centers the map on it, double clicking opens its details.
+					</description>
+					<parameter name="count" type="int" default="10">
+						<description>
+						Number of events to list. Set to 0 to disable the list.
+						</description>
+					</parameter>
+					<parameter name="position" type="string" default="bottomleft" values="topleft,topright,bottomright,bottomleft">
+						<description>
+						The legend location. Legends at the same location are
+						stacked and can be switched by the arrows in their
+						header.
+						</description>
+					</parameter>
+				</group>
 			</group>
 			<group name="stations">
 				<parameter name="amplitudeTimeSpan" type="double" default="10" unit="s">

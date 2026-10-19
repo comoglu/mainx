@@ -291,6 +291,10 @@ class NetworkLayer : public Gui::Map::Layer {
 
 		Gui::Map::Legend *mainLegend() const;
 
+		//! The legend summarizing station configuration issues and data
+		//! delays of the visible stations.
+		Gui::Map::Legend *statusLegend() const;
+
 		void updateStation(const std::string &staID);
 
 		//! Forces a recomputation of the render order, e.g. after a symbol
@@ -380,6 +384,10 @@ class NetworkLayer : public Gui::Map::Layer {
 		//! perceptually distinct automatic colors.
 		void assignNetworkColors();
 
+		//! Recomputes the network status legend. Returns true if a value
+		//! has changed.
+		bool updateStatusLegend();
+
 		//! Recomputes a single symbol's visibility from all active filters
 		//! (network selection, closed and unbound toggles).
 		void updateSymbolVisibility(NetworkLayerSymbol *s) const;
@@ -426,6 +434,8 @@ class NetworkLayer : public Gui::Map::Layer {
 
 		//! Cached render order, see drawOrder()
 		mutable Symbols                          _drawOrder;
+
+		Gui::Map::Legend                        *_statusLegend{nullptr};
 		mutable bool                             _drawOrderDirty{true};
 
 		//! Screen rectangle of the station-filter alert box (empty when it is

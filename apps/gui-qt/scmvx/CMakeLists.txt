@@ -13,6 +13,7 @@ SET(
 		map/networklayer.cpp
 		map/eventlayer.cpp
 		map/currenteventlayer.cpp
+		map/recenteventslayer.cpp
 		map/scalelayer.cpp
 		settings.cpp
 		eventinfodialog.cpp
@@ -34,6 +35,7 @@ SET(
 		map/networklayer.h
 		map/eventlayer.h
 		map/currenteventlayer.h
+		map/recenteventslayer.h
 		map/scalelayer.h
 		app.h
 		eventinfodialog.h

@@ -106,6 +106,9 @@ struct Settings : System::Application::AbstractSettings {
 	bool              showLegend{false};
 	std::string       stationLegendPosition;
 	std::string       eventLegendPosition;
+	std::string       statusLegendPosition{"topright"};
+	int               recentEventCount{10};
+	std::string       recentEventPosition{"bottomleft"};
 	bool              annotations{false};
 	bool              annotationsWithChannels{true};
 	bool              showUnboundStations{true};

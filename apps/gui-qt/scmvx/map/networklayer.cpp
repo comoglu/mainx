@@ -27,6 +27,7 @@
 
 #include <seiscomp/datamodel/sensorlocation.h>
 #include <seiscomp/datamodel/stream.h>
+#include <seiscomp/datamodel/waveformquality.h>
 
 #include <QApplication>
 #include <QSet>
@@ -35,6 +36,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <limits>
 
 #include "networklayer.h"
@@ -226,6 +228,149 @@ void drawWarningSymbol(QPainter &painter, const QPoint &lowerLeft, const QPixmap
 
 
 const NetworkLayerGradient *currentGradient = nullptr;
+
+
+//! Data delay above which a station counts as delayed
+const double statusDelayWarning = 60;
+//! Data delay above which a station counts as silent
+const double statusDelayError = 600;
+//! Latency above which a station counts as late, same as the warning
+//! threshold of the latency QC gradient
+const double statusLatencyWarning = 60;
+
+
+class NetworkStatusLegend : public Gui::Map::Legend {
+	public:
+		struct Counts {
+			int visible{0};
+			int unbound{0};
+			int noDetecStream{0};
+			int mismatch{0};
+			int disabled{0};
+			int delayOK{0};
+			int delayWarning{0};
+			int delayError{0};
+			int noQC{0};
+			int latencyWarning{0};
+
+			bool operator==(const Counts &other) const {
+				return std::memcmp(this, &other, sizeof(Counts)) == 0;
+			}
+		};
+
+		NetworkStatusLegend(QObject *parent) : Gui::Map::Legend(parent) {
+			setTitle(tr("Network status"));
+			setCounts(Counts());
+		}
+
+		bool setCounts(const Counts &counts) {
+			if ( _rows.size() && (counts == _counts) ) {
+				return false;
+			}
+
+			_counts = counts;
+			_rows.clear();
+
+			_rows.append({ tr("Visible stations"), counts.visible, QColor(), true });
+			_rows.append({ tr("Configuration"), -1, QColor(), true });
+			_rows.append({ tr("Missing global bindings"), counts.unbound, QColor(), false });
+			_rows.append({ tr("Missing detecStream"), counts.noDetecStream, QColor(), false });
+			_rows.append({ tr("Bindings mismatching inventory"), counts.mismatch, QColor(), false });
+			_rows.append({ tr("Disabled"), counts.disabled, QColor(), false });
+			_rows.append({ tr("Data delay"), -1, QColor(), true });
+			_rows.append({ tr("< 1 min"), counts.delayOK, SCScheme.colors.qc.qcOk, false });
+			_rows.append({ tr("1 - 10 min"), counts.delayWarning, SCScheme.colors.qc.qcWarning, false });
+			_rows.append({ tr("> 10 min"), counts.delayError, SCScheme.colors.qc.qcError, false });
+			_rows.append({ tr("No QC"), counts.noQC, SCScheme.colors.qc.qcNotSet, false });
+			_rows.append({ tr("Latency"), -1, QColor(), true });
+			_rows.append({ tr("> 1 min"), counts.latencyWarning, SCScheme.colors.qc.qcWarning, false });
+
+			// Opaque swatches
+			for ( auto &row : _rows ) {
+				if ( row.color.isValid() ) {
+					row.color.setAlpha(255);
+				}
+			}
+
+			QFontMetrics fm(qApp->font());
+			QFont bold = qApp->font();
+			bold.setBold(true);
+			QFontMetrics fmBold(bold);
+
+			int fontHeight = fm.height();
+			int labelWidth = 0;
+			int valueWidth = 0;
+			for ( const auto &row : _rows ) {
+				const auto &metrics = row.bold ? fmBold : fm;
+				labelWidth = std::max(labelWidth, QT_FM_WIDTH(metrics, row.label));
+				if ( row.value >= 0 ) {
+					valueWidth = std::max(valueWidth, QT_FM_WIDTH(metrics, QString::number(row.value)));
+				}
+			}
+
+			// Swatch, label, gap, value
+			_size = QSize(fontHeight * 3 / 2 + labelWidth + fontHeight + valueWidth + fontHeight / 2,
+			              int(_rows.size()) * fontHeight * 5 / 4 + fontHeight / 2);
+			return true;
+		}
+
+		void draw(const QRect &rect, QPainter &painter) override {
+			int fontHeight = QFontMetrics(qApp->font()).height();
+			int x = rect.left() + fontHeight / 2;
+			int right = rect.right() - fontHeight / 2;
+			int y = rect.top() + fontHeight / 4;
+
+			QFont normal = painter.font();
+			QFont bold = normal;
+			bold.setBold(true);
+
+			for ( const auto &row : _rows ) {
+				painter.setFont(row.bold ? bold : normal);
+
+				int textX = x;
+				if ( !row.bold || row.color.isValid() ) {
+					textX += fontHeight;
+				}
+
+				if ( row.color.isValid() ) {
+					QRect swatch(x + (row.bold ? 0 : fontHeight / 4), y + fontHeight / 4,
+					             fontHeight / 2, fontHeight / 2);
+					painter.fillRect(swatch, row.color);
+					painter.setPen(QColor(0, 0, 0, 128));
+					painter.drawRect(swatch);
+				}
+
+				painter.setPen(Qt::black);
+				painter.drawText(textX, y, right - textX, fontHeight,
+				                 Qt::AlignLeft | Qt::AlignVCenter, row.label);
+
+				if ( row.value >= 0 ) {
+					// Highlight problems
+					bool problem = (row.value > 0) && !row.bold && !row.color.isValid();
+					problem = problem || ((row.value > 0) && row.color.isValid()
+					                      && (row.color.rgb() == SCScheme.colors.qc.qcError.rgb()));
+					painter.setPen(problem ? QColor(192, 0, 0) : QColor(Qt::black));
+					painter.drawText(x, y, right - x, fontHeight,
+					                 Qt::AlignRight | Qt::AlignVCenter, QString::number(row.value));
+				}
+
+				y += fontHeight * 5 / 4;
+			}
+
+			painter.setFont(normal);
+		}
+
+	private:
+		struct Row {
+			QString label;
+			int     value; //!< -1 for section headers
+			QColor  color;
+			bool    bold;
+		};
+
+		Counts       _counts;
+		QVector<Row> _rows;
+};
 
 
 }
@@ -666,6 +811,12 @@ NetworkLayer::NetworkLayer(QObject *parent)
 	_legend->setArea(Qt::AlignRight | Qt::AlignTop);
 	_legend->setLayer(this);
 	addLegend(_legend);
+
+	_statusLegend = new NetworkStatusLegend(this);
+	_statusLegend->setArea(Qt::AlignRight | Qt::AlignTop);
+	_statusLegend->setLayer(this);
+	_statusLegend->setEnabled(true);
+	addLegend(_statusLegend);
 }
 // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -1381,6 +1532,10 @@ void NetworkLayer::tick() {
 		}
 	}
 
+	if ( updateStatusLegend() ) {
+		changed = true;
+	}
+
 	if ( changed )
 		emit updateRequested();
 }
@@ -1793,6 +1948,108 @@ void NetworkLayer::updateColor(NetworkLayerSymbol *symbol) {
 	}
 
 	_drawOrderDirty = true;
+}
+// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+Gui::Map::Legend *NetworkLayer::statusLegend() const {
+	return _statusLegend;
+}
+// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+bool NetworkLayer::updateStatusLegend() {
+	NetworkStatusLegend::Counts counts;
+	auto now = Core::Time::UTC();
+
+	foreach ( NetworkLayerSymbol *s, _stationSymbols ) {
+		if ( !s->isVisible() ) {
+			continue;
+		}
+
+		++counts.visible;
+
+		// Same criteria as the station lists of the context menu
+		switch ( s->state() ) {
+			case Settings::Unconfigured:
+				++counts.unbound;
+				break;
+			case Settings::NoPrimaryStream:
+				++counts.noDetecStream;
+				++counts.mismatch;
+				break;
+			case Settings::NoChannelGroupMetaData:
+			case Settings::NoVerticalChannelMetaData:
+				++counts.mismatch;
+				break;
+			default:
+				break;
+		}
+
+		auto data = s->data();
+		if ( !data ) {
+			continue;
+		}
+
+		if ( !data->enabled ) {
+			++counts.disabled;
+			continue;
+		}
+
+		if ( s->isClosed() || (s->state() != Settings::OK) ) {
+			continue;
+		}
+
+		// Data delay of enabled, operational stations. QC reports are sent at
+		// intervals of minutes. If the last report is older than the error
+		// threshold, the station counts as silent regardless of the reported
+		// delay, e.g. because QC stopped as no data arrive anymore.
+		auto it = data->qc.find("delay");
+		if ( it == data->qc.end() ) {
+			++counts.noQC;
+		}
+		else {
+			const auto *wfq = it->second.get();
+			double delay = wfq->value();
+			double reportAge = 0;
+			try {
+				reportAge = static_cast<double>(now - wfq->end());
+			}
+			catch ( ... ) {
+				try {
+					reportAge = static_cast<double>(now - wfq->start());
+				}
+				catch ( ... ) {}
+			}
+
+			if ( reportAge > statusDelayError ) {
+				delay = std::max(delay, reportAge);
+			}
+
+			if ( delay < statusDelayWarning ) {
+				++counts.delayOK;
+			}
+			else if ( delay < statusDelayError ) {
+				++counts.delayWarning;
+			}
+			else {
+				++counts.delayError;
+			}
+		}
+
+		it = data->qc.find("latency");
+		if ( (it != data->qc.end()) && (it->second->value() > statusLatencyWarning) ) {
+			++counts.latencyWarning;
+		}
+	}
+
+	return static_cast<NetworkStatusLegend*>(_statusLegend)->setCounts(counts);
 }
 // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 

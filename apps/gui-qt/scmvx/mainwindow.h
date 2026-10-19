@@ -48,6 +48,7 @@ class NetworkLayer;
 class EventLayer;
 class EventHeatLayer;
 class CurrentEventLayer;
+class RecentEventsLayer;
 class SearchWidget;
 class EventInfoDialog;
 
@@ -109,6 +110,7 @@ class MainWindow : public Gui::MainWindow {
 		void hoverEvent(const std::string &);
 		void selectEvent(const std::string &);
 		void showCurrentEventDetails(const std::string &);
+		void centerOnEvent(const std::string &);
 		void selectEventFromList(Seiscomp::DataModel::Event *);
 
 		void stationEntered(Seiscomp::DataModel::Station *station);
@@ -127,6 +129,7 @@ class MainWindow : public Gui::MainWindow {
 
 	private:
 		void updateCurrentEvent();
+		void updateRecentEvents();
 		void showMapCoordinates(const QPoint &pos);
 		void sendArtificialOrigin(const QPoint &pos);
 
@@ -179,6 +182,8 @@ class MainWindow : public Gui::MainWindow {
 		EventLayer                    *_eventLayer;
 		EventHeatLayer                *_eventHeatLayer;
 		CurrentEventLayer             *_currentEventLayer;
+		RecentEventsLayer             *_recentEventsLayer;
+		bool                           _recentEventsDirty{true};
 		bool                           _mapDirty;
 		Gui::RecordWidget             *_currentTraces;
 		ObjectCache                    _cache;

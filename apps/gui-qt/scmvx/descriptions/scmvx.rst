@@ -149,6 +149,20 @@ waveforms. Issues are explained.
 
    Network tab indicating a station with missing global bindings.
 
+Two additional map legends support operations. They are stacked with the
+other legends at their location and selected by the arrows in the legend
+header:
+
+* **Network status** summarizes the visible stations: configuration issues as
+  in the *Stations status* context menu, data delays reported by
+  :ref:`scqc` (< 1 min, 1 - 10 min, > 10 min, no QC) and latencies above
+  1 min. A station whose last QC report is older than 10 min is counted as
+  delayed by more than 10 min. Location: :confval:`statusLegendPosition`.
+* **Recent events** lists the latest events of the event list with origin
+  time, magnitude, region and age. Clicking an event centers the map on it,
+  double clicking opens the event details. Configuration:
+  :confval:`events.recentList.count`, :confval:`events.recentList.position`.
+
 
 .. _sec-scmvx-gm-tab:
 
