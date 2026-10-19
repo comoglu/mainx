@@ -110,6 +110,10 @@ struct Settings : System::Application::AbstractSettings {
 	bool              annotationsWithChannels{true};
 	bool              showUnboundStations{true};
 
+	//! Fixed network colors as "NET:color" where color is any color
+	//! string understood by QColor, e.g. "AU:#1f77b4" or "S1:orange".
+	std::vector<std::string> networkColors;
+
 	struct {
 		void accept(System::Application::SettingsLinker &linker) {
 			linker

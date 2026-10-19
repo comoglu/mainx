@@ -18,6 +18,8 @@
  ***************************************************************************/
 
 
+#define SEISCOMP_COMPONENT MapView
+#include <seiscomp/logging/log.h>
 #include <seiscomp/gui/core/application.h>
 #include <seiscomp/gui/core/compat.h>
 #include <seiscomp/gui/core/icon.h>
@@ -32,6 +34,8 @@
 #include <QVector>
 
 #include <algorithm>
+#include <cmath>
+#include <limits>
 
 #include "networklayer.h"
 #include "settings.h"
@@ -58,7 +62,58 @@ typedef QList<QRect> Row;
 typedef QVector<Row> Grid;
 
 
-#define goldenRationConjugate 0.618033988749895
+struct Lab {
+	double L, a, b;
+};
+
+
+Lab toLab(const QColor &c) {
+	auto linear = [](double v) {
+		return v <= 0.04045 ? v / 12.92 : std::pow((v + 0.055) / 1.055, 2.4);
+	};
+
+	double r = linear(c.redF());
+	double g = linear(c.greenF());
+	double b = linear(c.blueF());
+
+	// sRGB to XYZ (D65), normalized by the reference white
+	double x = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047;
+	double y = (0.2126 * r + 0.7152 * g + 0.0722 * b);
+	double z = (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883;
+
+	auto f = [](double t) {
+		return t > 216.0 / 24389.0 ? std::cbrt(t) : (24389.0 / 27.0 * t + 16.0) / 116.0;
+	};
+
+	double fx = f(x), fy = f(y), fz = f(z);
+	return { 116.0 * fy - 16.0, 500.0 * (fx - fy), 200.0 * (fy - fz) };
+}
+
+
+double labDistance(const Lab &c1, const Lab &c2) {
+	double dL = c1.L - c2.L;
+	double da = c1.a - c2.a;
+	double db = c1.b - c2.b;
+	return std::sqrt(dL*dL + da*da + db*db);
+}
+
+
+//! Candidate colors for automatic network colors. All are saturated
+//! enough to be distinguishable from the gray of disabled stations.
+const QVector<QColor> &networkColorCandidates() {
+	static QVector<QColor> candidates;
+	if ( candidates.isEmpty() ) {
+		const qreal tiers[][2] = {
+			{0.80, 0.90}, {0.65, 0.70}, {0.90, 0.55}, {0.45, 0.95}
+		};
+		for ( const auto &tier : tiers ) {
+			for ( int hue = 0; hue < 360; hue += 6 ) {
+				candidates.append(QColor::fromHsvF(hue / 360.0, tier[0], tier[1]));
+			}
+		}
+	}
+	return candidates;
+}
 
 
 bool topToBottom(const NetworkLayerSymbol *s1, const NetworkLayerSymbol *s2) {
@@ -799,6 +854,14 @@ void NetworkLayer::setInventory(DataModel::Inventory *inv,
 	updateAnnotations();
 
 	std::sort(_stationSymbols.begin(), _stationSymbols.end(), topToBottom);
+
+	assignNetworkColors();
+	if ( _colorMode == Network ) {
+		foreach ( NetworkLayerSymbol *s, _stationSymbols ) {
+			updateColor(s);
+		}
+	}
+
 	_drawOrderDirty = true;
 	_legend->updateFrom(this);
 
@@ -1698,18 +1761,8 @@ void NetworkLayer::updateColor(NetworkLayerSymbol *symbol) {
 
 			case Network:
 			{
-				QColor color = _networkColors[symbol->model()->network()->code()];
-				QColor baseColor = defaultColor.toHsv();
-
-				if ( !color.isValid() ) {
-					// distribute colors in color spectrum evenly with golden ratio
-					float h = (_networkColors.size()-1) * goldenRationConjugate;
-					if ( h > 1 ) h -= int(h);
-					color = QColor::fromHsv((int(360*h)+baseColor.hue())%360, 192, 192);
-					_networkColors[symbol->model()->network()->code()] = color;
-				}
-
-				symbol->setColor(color);
+				auto it = _networkColors.find(symbol->model()->network()->code());
+				symbol->setColor(it != _networkColors.end() ? it->second : defaultColor);
 				break;
 			}
 
@@ -1740,6 +1793,101 @@ void NetworkLayer::updateColor(NetworkLayerSymbol *symbol) {
 	}
 
 	_drawOrderDirty = true;
+}
+// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+void NetworkLayer::assignNetworkColors() {
+	_networkColors.clear();
+
+	std::set<std::string> codes;
+	for ( auto *s : _stationSymbols ) {
+		codes.insert(s->model()->network()->code());
+	}
+
+	// Configured colors first
+	for ( const auto &entry : global.networkColors ) {
+		auto pos = entry.find(':');
+		if ( pos == std::string::npos ) {
+			SEISCOMP_WARNING("Invalid network color '%s', expected NET:color",
+			                 entry.c_str());
+			continue;
+		}
+
+		auto code = QString::fromStdString(entry.substr(0, pos)).trimmed().toStdString();
+		QColor color(QString::fromStdString(entry.substr(pos + 1)).trimmed());
+		if ( !color.isValid() ) {
+			SEISCOMP_WARNING("Invalid color for network %s: %s",
+			                 code.c_str(), entry.substr(pos + 1).c_str());
+			continue;
+		}
+
+		if ( codes.find(code) != codes.end() ) {
+			_networkColors[code] = color;
+		}
+	}
+
+	QVector<Lab> used;
+	for ( const auto &[code, color] : _networkColors ) {
+		used.append(toLab(color));
+	}
+
+	// Assign the remaining networks in alphabetical order. Each one gets
+	// the candidate color which is perceptually most distinct from all
+	// colors already in use.
+	const auto &candidates = networkColorCandidates();
+	QVector<Lab> candidateLabs;
+	candidateLabs.reserve(candidates.size());
+	for ( const auto &c : candidates ) {
+		candidateLabs.append(toLab(c));
+	}
+
+	QVector<bool> taken(candidates.size(), false);
+
+	for ( const auto &code : codes ) {
+		if ( _networkColors.find(code) != _networkColors.end() ) {
+			continue;
+		}
+
+		QColor color;
+
+		if ( used.isEmpty() ) {
+			color = defaultColor;
+		}
+		else {
+			int best = -1;
+			double bestDistance = -1;
+			for ( int i = 0; i < candidates.size(); ++i ) {
+				if ( taken[i] ) {
+					continue;
+				}
+
+				double minDistance = std::numeric_limits<double>::max();
+				for ( const auto &u : used ) {
+					minDistance = std::min(minDistance, labDistance(candidateLabs[i], u));
+				}
+
+				if ( minDistance > bestDistance ) {
+					bestDistance = minDistance;
+					best = i;
+				}
+			}
+
+			if ( best < 0 ) {
+				color = defaultColor;
+			}
+			else {
+				taken[best] = true;
+				color = candidates[best];
+			}
+		}
+
+		_networkColors[code] = color;
+		used.append(toLab(color));
+	}
 }
 // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 

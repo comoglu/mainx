@@ -110,6 +110,16 @@
 					Sets the filter applied to determine ground motion.
 					</description>
 				</parameter>
+				<parameter name="networkColors" type="list:string">
+					<description>
+					Fixed colors of station symbols per network in the Network
+					tab as list of NET:color, e.g. &quot;AU:#1f77b4, S1:orange&quot;.
+					Colors are given as hex codes or SVG color names. All other
+					networks are assigned automatically with colors which are
+					perceptually as distinct as possible from each other and
+					from the configured colors.
+					</description>
+				</parameter>
 			</group>
 		</configuration>
 		<command-line>

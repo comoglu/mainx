@@ -376,6 +376,10 @@ class NetworkLayer : public Gui::Map::Layer {
 		void disposeSymbols();
 		void updateColor(NetworkLayerSymbol *symbol);
 
+		//! Assigns a color to each network: configured colors first, then
+		//! perceptually distinct automatic colors.
+		void assignNetworkColors();
+
 		//! Recomputes a single symbol's visibility from all active filters
 		//! (network selection, closed and unbound toggles).
 		void updateSymbolVisibility(NetworkLayerSymbol *s) const;

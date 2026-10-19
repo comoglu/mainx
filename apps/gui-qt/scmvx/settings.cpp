@@ -53,6 +53,7 @@ void Settings::accept(System::Application::SettingsLinker &linker) {
 	& cfg(ringBuffer, "stations.groundMotionRecordLifeSpan")
 	& cfg(triggerTimeout, "stations.triggerTimeout")
 	& cfg(triggerFrameSize, "stations.triggerFrameSize")
+	& cfg(networkColors, "stations.networkColors")
 	& cfg(eventTimeSpan, "readEventsNotOlderThan")
 	& cfg(centerOrigins, "centerOrigins")
 	& cfg(showLatestEvent, "events.showLatestEventWidget")
