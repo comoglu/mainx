@@ -50,7 +50,9 @@
 #include <QLabel>
 #include <QList>
 #include <QMap>
+#include <QActionGroup>
 #include <QMenu>
+#include <QRegularExpression>
 #include <QMessageBox>
 #include <QScreen>
 #include <QScrollArea>
@@ -79,6 +81,122 @@ using namespace std;
 using namespace Seiscomp;
 
 namespace dm = Seiscomp::DataModel;
+
+
+namespace {
+
+
+//! Parses a color given as hex code with or without '#' or as SVG name
+QColor parseColor(const std::string &text) {
+	QString value = QString::fromStdString(text).trimmed();
+	static const QRegularExpression hex("^[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$");
+	if ( hex.match(value).hasMatch() ) {
+		if ( value.size() == 8 ) {
+			// RRGGBBAA as used by the SeisComP scheme
+			QColor c("#" + value.left(6));
+			c.setAlpha(value.mid(6, 2).toInt(nullptr, 16));
+			return c;
+		}
+		value = "#" + value;
+	}
+	return QColor(value);
+}
+
+
+//! Parses "key:color" items. Returns false if any item is invalid.
+bool parseColorItems(const std::vector<std::string> &items,
+                     std::vector<std::pair<std::string, QColor>> &result) {
+	result.clear();
+	for ( const auto &item : items ) {
+		auto pos = item.rfind(':');
+		if ( pos == std::string::npos ) {
+			return false;
+		}
+
+		QColor color = parseColor(item.substr(pos + 1));
+		if ( !color.isValid() ) {
+			return false;
+		}
+
+		result.emplace_back(QString::fromStdString(item.substr(0, pos)).trimmed().toStdString(), color);
+	}
+	return true;
+}
+
+
+//! Reads an optional gradient parameter "value:color, ..."
+void readGradient(const std::string &param, Gui::Gradient &gradient) {
+	std::vector<std::string> items;
+	try {
+		items = SCApp->configGetStrings(param);
+	}
+	catch ( ... ) {
+		return;
+	}
+
+	std::vector<std::pair<std::string, QColor>> parsed;
+	if ( !parseColorItems(items, parsed) ) {
+		SEISCOMP_WARNING("%s: invalid gradient, using default", param.c_str());
+		return;
+	}
+
+	Gui::Gradient result;
+	for ( const auto &[key, color] : parsed ) {
+		bool ok;
+		double value = QString::fromStdString(key).toDouble(&ok);
+		if ( !ok ) {
+			SEISCOMP_WARNING("%s: invalid value '%s', using default", param.c_str(), key.c_str());
+			return;
+		}
+		result.setColorAt(value, color);
+	}
+
+	if ( !result.isEmpty() ) {
+		gradient = result;
+	}
+}
+
+
+//! Reads an optional list of named colors "name:color, ..."
+void readNamedColors(const std::string &param, MapViewX::EventLayer::NamedColors &colors) {
+	std::vector<std::string> items;
+	try {
+		items = SCApp->configGetStrings(param);
+	}
+	catch ( ... ) {
+		return;
+	}
+
+	std::vector<std::pair<std::string, QColor>> parsed;
+	if ( !parseColorItems(items, parsed) ) {
+		SEISCOMP_WARNING("%s: invalid color list, using default", param.c_str());
+		return;
+	}
+
+	MapViewX::EventLayer::NamedColors result;
+	for ( const auto &[name, color] : parsed ) {
+		result.append({ QString::fromStdString(name), color });
+	}
+	colors = result;
+}
+
+
+//! Reads an optional single color
+void readColor(const std::string &param, QColor &color) {
+	try {
+		QColor c = parseColor(SCApp->configGetString(param));
+		if ( c.isValid() ) {
+			color = c;
+		}
+		else {
+			SEISCOMP_WARNING("%s: invalid color, using default", param.c_str());
+		}
+	}
+	catch ( ... ) {}
+}
+
+
+}
 
 
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -254,6 +372,54 @@ MainWindow::MainWindow(QWidget *parent, Qt::WindowFlags f)
 	}
 	else if ( global.eventLegendPosition == "bottomleft" ) {
 		_eventLayer->legend(0)->setArea(Qt::AlignLeft | Qt::AlignBottom);
+	}
+
+	// Event symbol colors
+	{
+		auto scheme = EventLayer::defaultColorScheme();
+		readGradient("events.color.magnitude.gradient", scheme.magnitude);
+		readGradient("events.color.age.gradient", scheme.age);
+		readNamedColors("events.color.evaluation.colors", scheme.evaluation);
+		readNamedColors("events.color.type.colors", scheme.types);
+		readColor("events.color.type.unset", scheme.unsetType);
+		readColor("events.color.type.other", scheme.otherType);
+
+		EventLayer::ColorMode mode = EventLayer::ColorMode::Depth;
+		if ( !EventLayer::parseColorMode(global.eventColorMode, mode) ) {
+			SEISCOMP_WARNING("events.color.mode: invalid mode '%s', using depth",
+			                 global.eventColorMode.c_str());
+		}
+
+		_eventLayer->setColorScheme(scheme);
+		_eventLayer->setColorMode(mode);
+
+		// The latest event box follows the color mode of the symbols
+		_currentEventLayer->setColorProvider([this](const std::string &eventID) {
+			return _eventLayer->modeColor(eventID);
+		});
+
+		auto menu = new QMenu(tr("Color events by"), this);
+		auto group = new QActionGroup(menu);
+		const std::pair<QString, EventLayer::ColorMode> modes[] = {
+			{ tr("Depth"), EventLayer::ColorMode::Depth },
+			{ tr("Magnitude"), EventLayer::ColorMode::Magnitude },
+			{ tr("Time since origin"), EventLayer::ColorMode::Age },
+			{ tr("Evaluation"), EventLayer::ColorMode::Evaluation },
+			{ tr("Event type"), EventLayer::ColorMode::Type }
+		};
+
+		for ( const auto &[label, value] : modes ) {
+			auto action = menu->addAction(label);
+			action->setCheckable(true);
+			action->setChecked(value == mode);
+			action->setActionGroup(group);
+			connect(action, &QAction::triggered, this, [this, value = value]() {
+				_eventLayer->setColorMode(value);
+				_mapWidget->update();
+			});
+		}
+
+		_ui.menuView->insertMenu(_ui.actionShowMapLegend, menu);
 	}
 
 	connect(_eventListView, SIGNAL(reset()), _eventLayer, SLOT(clear()));

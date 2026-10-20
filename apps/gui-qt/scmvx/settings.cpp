@@ -64,6 +64,7 @@ void Settings::accept(System::Application::SettingsLinker &linker) {
 	& cfg(statusLegendPosition, "statusLegendPosition")
 	& cfg(recentEventCount, "events.recentList.count")
 	& cfg(recentEventPosition, "events.recentList.position")
+	& cfg(eventColorMode, "events.color.mode")
 	& cfg(annotations, "annotations")
 	& cfg(annotationsWithChannels, "annotationsWithChannels")
 	& cfg(showUnboundStations, "showUnboundStations")

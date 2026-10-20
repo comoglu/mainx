@@ -89,6 +89,65 @@
 					be toggelt interactively by the View menu.
 					</description>
 				</parameter>
+				<group name="color">
+					<description>
+					Coloring of the event symbols and of the magnitude in the
+					latest event widget. The mode can be changed interactively
+					by the View menu.
+					</description>
+					<parameter name="mode" type="string" default="depth" values="depth,magnitude,age,evaluation,type">
+						<description>
+						The attribute to color the event symbols by: the depth
+						as defined by the scheme, the preferred magnitude, the
+						time since origin time, the evaluation of the preferred
+						origin or the event type.
+						</description>
+					</parameter>
+					<group name="magnitude">
+						<parameter name="gradient" type="gradient" default="0:B0B0B0,3:FFD700,4:FFA500,5:FF0000,6:8B0000">
+							<description>
+							Colors by magnitude. The color of the largest value
+							less than or equal to the magnitude is used.
+							</description>
+						</parameter>
+					</group>
+					<group name="age">
+						<parameter name="gradient" type="gradient" unit="s" default="0:FF0000,3600:FFA500,21600:FFFF00,86400:B0B0B0">
+							<description>
+							Colors by time since origin time in seconds. The
+							color of the largest value less than or equal to
+							the age is used.
+							</description>
+						</parameter>
+					</group>
+					<group name="evaluation">
+						<parameter name="colors" type="list:string">
+							<description>
+							Colors of the evaluation states as list of
+							state:color with the states automatic, manual,
+							confirmed (confirmed, reviewed or final status)
+							and rejected. The defaults of automatic and manual
+							are the scheme colors of the origin status.
+							Example: &quot;automatic:FF0000, manual:006400,
+							confirmed:1E64C8, rejected:A0A0A0&quot;
+							</description>
+						</parameter>
+					</group>
+					<group name="type">
+						<parameter name="colors" type="list:string" default="&quot;earthquake:FF0000&quot;,&quot;induced or triggered event:9400D3&quot;,&quot;quarry blast:8B4513&quot;,&quot;mining explosion:A0522D&quot;,&quot;explosion:FF8C00&quot;,&quot;not existing:A0A0A0&quot;">
+							<description>
+							Colors of event types as list of type:color using
+							the event type names of the data model.
+							</description>
+						</parameter>
+						<parameter name="unset" type="color" default="FFFFFF">
+							<description>Color of events without type.</description>
+						</parameter>
+						<parameter name="other" type="color" default="00CED1">
+							<description>Color of event types not configured.</description>
+						</parameter>
+					</group>
+				</group>
 				<group name="recentList">
 					<description>
 					Legend listing the most recent events. Clicking an event

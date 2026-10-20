@@ -109,6 +109,7 @@ struct Settings : System::Application::AbstractSettings {
 	std::string       statusLegendPosition{"topright"};
 	int               recentEventCount{10};
 	std::string       recentEventPosition{"bottomleft"};
+	std::string       eventColorMode{"depth"};
 	bool              annotations{false};
 	bool              annotationsWithChannels{true};
 	bool              showUnboundStations{true};

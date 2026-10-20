@@ -27,6 +27,10 @@
 #include <seiscomp/gui/map/layer.h>
 #endif
 
+#include <QColor>
+
+#include <functional>
+
 
 namespace Seiscomp::MapViewX {
 
@@ -56,6 +60,12 @@ class CurrentEventLayer : public Gui::Map::Layer {
 		 *        changed. Should be called periodically.
 		 */
 		void tick();
+
+		/**
+		 * @brief Sets a function returning the color of an event. If it
+		 *        returns an invalid color, the depth color is used.
+		 */
+		void setColorProvider(std::function<QColor (const std::string &)> provider);
 
 
 	// ----------------------------------------------------------------------
@@ -98,6 +108,7 @@ class CurrentEventLayer : public Gui::Map::Layer {
 		OPT(double)     _depth;
 		QString         _status;
 		QString         _lastAgo;
+		std::function<QColor (const std::string &)> _colorProvider;
 };
 
 

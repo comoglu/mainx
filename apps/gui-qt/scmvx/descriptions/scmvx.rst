@@ -149,6 +149,16 @@ waveforms. Issues are explained.
 
    Network tab indicating a station with missing global bindings.
 
+Event symbols are colored by depth by default. Alternatively they can be
+colored by magnitude, time since origin time, evaluation or event type, either
+configured by :confval:`events.color.mode` or selected interactively in the
+*View* menu. The event legend and the magnitude of the latest event widget
+follow the selected mode. The colors are configured in
+:confval:`events.color.magnitude.gradient`,
+:confval:`events.color.age.gradient`,
+:confval:`events.color.evaluation.colors` and
+:confval:`events.color.type.colors`.
+
 Two additional map legends support operations. They are stacked with the
 other legends at their location and selected by the arrows in the legend
 header:

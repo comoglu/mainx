@@ -30,10 +30,14 @@
 #include <seiscomp/gui/datamodel/eventlayer.h>
 #include <seiscomp/gui/datamodel/ttdecorator.h>
 
+#include <QApplication>
 #include <QMenu>
+#include <QPainter>
 #include <QMouseEvent>
 
 #include <algorithm>
+#include <cmath>
+#include <functional>
 
 #include "eventlayer.h"
 
@@ -185,10 +189,489 @@ void updateSymbol(DataModel::PublicObjectCache *cache,
 
 
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+/**
+ * @brief Legend of the non-depth color modes: the color classes followed
+ *        by the magnitude dependent symbol sizes.
+ */
+class EventColorLegend : public Gui::Map::Legend {
+	public:
+		explicit EventColorLegend(QObject *parent) : Gui::Map::Legend(parent) {
+			int fromMag = static_cast<int>(SCScheme.map.originSymbolMinMag < 0 ?
+				ceil(SCScheme.map.originSymbolMinMag) : floor(SCScheme.map.originSymbolMinMag));
+			for ( int i = fromMag; i <= fromMag + 7; ++i ) {
+				_magnitudes.append(i);
+			}
+		}
+
+		void setContent(const QString &header, const EventLayer::NamedColors &items) {
+			_header = header;
+			_items = items;
+			layout();
+		}
+
+		void draw(const QRect &rect, QPainter &p) override {
+			p.save();
+
+			QFont normal = p.font();
+			QFont bold = normal;
+			bold.setBold(true);
+			QFontMetrics fm(normal);
+			int fh = fm.height();
+			int x0 = rect.left() + fh / 2;
+			int y = rect.top() + fh / 2;
+
+			p.setRenderHint(QPainter::Antialiasing, false);
+			p.setFont(bold);
+			p.setPen(SCScheme.colors.legend.headerText);
+			p.drawText(QRect(rect.left(), y, rect.width(), fh), Qt::AlignHCenter | Qt::AlignTop, _header);
+			y += fh + fh / 4;
+
+			// Color classes in rows
+			p.setFont(normal);
+			for ( const auto &row : _rows ) {
+				int x = x0 + (_contentWidth - row.second) / 2;
+				for ( int i : row.first ) {
+					const auto &item = _items[i];
+					QRect swatch(x, y + fh / 8, fh * 3 / 4, fh * 3 / 4);
+					p.setBrush(item.second);
+					p.setPen(QColor(0, 0, 0, 128));
+					p.drawRect(swatch);
+					x += fh * 3 / 4 + fh / 4;
+					p.setPen(SCScheme.colors.legend.text);
+					int w = fm.horizontalAdvance(item.first);
+					p.drawText(QRect(x, y, w, fh), Qt::AlignLeft | Qt::AlignVCenter, item.first);
+					x += w + fh;
+				}
+				y += fh + fh / 4;
+			}
+
+			// Symbol sizes
+			y += fh / 4;
+			p.setFont(bold);
+			p.setPen(SCScheme.colors.legend.headerText);
+			p.drawText(QRect(rect.left(), y, rect.width(), fh), Qt::AlignHCenter | Qt::AlignTop, tr("Magnitudes"));
+			y += fh + fh / 4;
+
+			p.setFont(normal);
+			p.setRenderHint(QPainter::Antialiasing, true);
+			int maxSize = Gui::OriginSymbol::getSize(_magnitudes.back());
+			int x = x0 + (_contentWidth - _magnitudesWidth) / 2;
+			for ( int m : _magnitudes ) {
+				int size = Gui::OriginSymbol::getSize(m);
+				p.setPen(QPen(QColor(64, 64, 64), 1.5));
+				p.setBrush(QColor(160, 160, 160));
+				p.drawEllipse(QRect(x, y + (maxSize - size) / 2, size, size));
+				x += size + fh / 4;
+				p.setPen(SCScheme.colors.legend.text);
+				QString label = QString::number(m);
+				int w = fm.horizontalAdvance(label);
+				p.drawText(QRect(x, y, w, maxSize), Qt::AlignLeft | Qt::AlignVCenter, label);
+				x += w + fh / 2;
+			}
+
+			p.restore();
+		}
+
+	private:
+		void layout() {
+			QFontMetrics fm(qApp->font());
+			int fh = fm.height();
+
+			_magnitudesWidth = 0;
+			for ( int m : _magnitudes ) {
+				_magnitudesWidth += Gui::OriginSymbol::getSize(m) + fh / 4
+				                  + fm.horizontalAdvance(QString::number(m)) + fh / 2;
+			}
+
+			int maxWidth = std::max(_magnitudesWidth, fh * 18);
+
+			// Flow the items into rows
+			_rows.clear();
+			QVector<int> row;
+			int rowWidth = 0;
+			for ( int i = 0; i < _items.size(); ++i ) {
+				int w = fh * 3 / 4 + fh / 4 + fm.horizontalAdvance(_items[i].first) + fh;
+				if ( !row.isEmpty() && (rowWidth + w - fh > maxWidth) ) {
+					_rows.append({ row, rowWidth - fh });
+					row.clear();
+					rowWidth = 0;
+				}
+				row.append(i);
+				rowWidth += w;
+			}
+			if ( !row.isEmpty() ) {
+				_rows.append({ row, rowWidth - fh });
+			}
+
+			_contentWidth = _magnitudesWidth;
+			for ( const auto &r : _rows ) {
+				_contentWidth = std::max(_contentWidth, r.second);
+			}
+			_contentWidth = std::max(_contentWidth, QFontMetrics(qApp->font()).horizontalAdvance(_header));
+
+			int maxSize = Gui::OriginSymbol::getSize(_magnitudes.back());
+			_size = QSize(_contentWidth + fh,
+			              fh / 2 + (fh + fh / 4) + int(_rows.size()) * (fh + fh / 4)
+			              + fh / 4 + (fh + fh / 4) + maxSize + fh / 2);
+		}
+
+	private:
+		QString                          _header;
+		EventLayer::NamedColors          _items;
+		QVector<QPair<QVector<int>, int>> _rows;
+		QVector<int>                     _magnitudes;
+		int                              _magnitudesWidth{0};
+		int                              _contentWidth{0};
+};
+// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+
+namespace {
+
+
+QString ageLabel(double seconds) {
+	if ( seconds < 3600 ) {
+		return QObject::tr("%1 min").arg(seconds / 60, 0, 'f', 0);
+	}
+	if ( seconds < 86400 ) {
+		return QObject::tr("%1 h").arg(seconds / 3600, 0, 'g', 3);
+	}
+	return QObject::tr("%1 d").arg(seconds / 86400, 0, 'g', 3);
+}
+
+
+//! Legend items of a gradient: "< second key", second key, ...
+EventLayer::NamedColors gradientItems(const Gui::Gradient &gradient,
+                                      const std::function<QString (double)> &format) {
+	EventLayer::NamedColors items;
+	if ( gradient.isEmpty() ) {
+		return items;
+	}
+
+	auto it = gradient.begin();
+	QColor first = it.value().first;
+	++it;
+	if ( it == gradient.end() ) {
+		items.append({ format(gradient.begin().key()), first });
+		return items;
+	}
+
+	items.append({ QString("< %1").arg(format(it.key())), first });
+	for ( ; it != gradient.end(); ++it ) {
+		items.append({ format(it.key()), it.value().first });
+	}
+
+	return items;
+}
+
+
+}
+// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 EventLayer::EventLayer(QObject* parent, DataModel::PublicObjectCache *cache)
 : Gui::EventLayer(parent)
 , _currentEvent(nullptr)
-, _cache(cache) {}
+, _cache(cache) {
+	_colorScheme = defaultColorScheme();
+	_colorLegend = new EventColorLegend(this);
+	_colorLegend->setEnabled(false);
+	addLegend(_colorLegend);
+}
+// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+EventLayer::ColorScheme EventLayer::defaultColorScheme() {
+	ColorScheme scheme;
+
+	scheme.magnitude.setColorAt(0, QColor(0xB0, 0xB0, 0xB0));
+	scheme.magnitude.setColorAt(3, QColor(0xFF, 0xD7, 0x00));
+	scheme.magnitude.setColorAt(4, QColor(0xFF, 0xA5, 0x00));
+	scheme.magnitude.setColorAt(5, QColor(0xFF, 0x00, 0x00));
+	scheme.magnitude.setColorAt(6, QColor(0x8B, 0x00, 0x00));
+
+	scheme.age.setColorAt(0, QColor(0xFF, 0x00, 0x00));
+	scheme.age.setColorAt(3600, QColor(0xFF, 0xA5, 0x00));
+	scheme.age.setColorAt(21600, QColor(0xFF, 0xFF, 0x00));
+	scheme.age.setColorAt(86400, QColor(0xB0, 0xB0, 0xB0));
+
+	scheme.evaluation = {
+		{ "automatic", SCScheme.colors.originStatus.automatic },
+		{ "manual", SCScheme.colors.originStatus.manual },
+		{ "confirmed", QColor(0x1E, 0x64, 0xC8) },
+		{ "rejected", QColor(0xA0, 0xA0, 0xA0) }
+	};
+
+	scheme.types = {
+		{ "earthquake", QColor(0xFF, 0x00, 0x00) },
+		{ "induced or triggered event", QColor(0x94, 0x00, 0xD3) },
+		{ "quarry blast", QColor(0x8B, 0x45, 0x13) },
+		{ "mining explosion", QColor(0xA0, 0x52, 0x2D) },
+		{ "explosion", QColor(0xFF, 0x8C, 0x00) },
+		{ "not existing", QColor(0xA0, 0xA0, 0xA0) }
+	};
+	scheme.unsetType = QColor(0xFF, 0xFF, 0xFF);
+	scheme.otherType = QColor(0x00, 0xCE, 0xD1);
+
+	return scheme;
+}
+// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+bool EventLayer::parseColorMode(const std::string &name, ColorMode &mode) {
+	if ( name == "depth" ) {
+		mode = ColorMode::Depth;
+	}
+	else if ( name == "magnitude" ) {
+		mode = ColorMode::Magnitude;
+	}
+	else if ( name == "age" ) {
+		mode = ColorMode::Age;
+	}
+	else if ( name == "evaluation" ) {
+		mode = ColorMode::Evaluation;
+	}
+	else if ( name == "type" ) {
+		mode = ColorMode::Type;
+	}
+	else {
+		return false;
+	}
+
+	return true;
+}
+// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+void EventLayer::setColorScheme(const ColorScheme &scheme) {
+	_colorScheme = scheme;
+	setColorMode(_colorMode);
+}
+// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+void EventLayer::setColorMode(ColorMode mode) {
+	_colorMode = mode;
+
+	// The depth legend of the base class is used for the depth mode
+	bool depth = _colorMode == ColorMode::Depth;
+	if ( legendCount() > 0 ) {
+		legend(0)->setEnabled(depth);
+		_colorLegend->setArea(legend(0)->alignment());
+	}
+	_colorLegend->setEnabled(!depth);
+
+	switch ( _colorMode ) {
+		case ColorMode::Magnitude:
+			_colorLegend->setContent(tr("Magnitude"), gradientItems(
+				_colorScheme.magnitude, [](double v) { return QString::number(v, 'g', 3); }));
+			break;
+		case ColorMode::Age:
+			_colorLegend->setContent(tr("Time since origin"), gradientItems(_colorScheme.age, ageLabel));
+			break;
+		case ColorMode::Evaluation:
+			_colorLegend->setContent(tr("Evaluation"), _colorScheme.evaluation);
+			break;
+		case ColorMode::Type:
+		{
+			auto items = _colorScheme.types;
+			items.append({ tr("unset"), _colorScheme.unsetType });
+			items.append({ tr("other"), _colorScheme.otherType });
+			_colorLegend->setContent(tr("Event type"), items);
+			break;
+		}
+		default:
+			break;
+	}
+
+	applyColors();
+	emit updateRequested();
+}
+// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+void EventLayer::updateColorInfo(Event *event, Origin *origin) {
+	ColorInfo info;
+
+	MagnitudePtr magnitude = _cache ? _cache->get<Magnitude>(event->preferredMagnitudeID())
+	                                : Magnitude::Find(event->preferredMagnitudeID());
+	if ( magnitude ) {
+		try {
+			info.magnitude = magnitude->magnitude().value();
+		}
+		catch ( ... ) {}
+	}
+
+	try {
+		info.time = origin->time().value();
+	}
+	catch ( ... ) {}
+
+	info.evaluation = "automatic";
+	try {
+		if ( origin->evaluationMode() == MANUAL ) {
+			info.evaluation = "manual";
+		}
+	}
+	catch ( ... ) {}
+
+	try {
+		switch ( origin->evaluationStatus() ) {
+			case REJECTED:
+				info.evaluation = "rejected";
+				break;
+			case CONFIRMED:
+			case REVIEWED:
+			case FINAL:
+				info.evaluation = "confirmed";
+				break;
+			default:
+				break;
+		}
+	}
+	catch ( ... ) {}
+
+	try {
+		info.type = event->type().toString();
+	}
+	catch ( ... ) {}
+
+	_colorInfo[event->publicID()] = info;
+}
+// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+QColor EventLayer::colorFor(const std::string &eventID) const {
+	const QColor unknown(0xA0, 0xA0, 0xA0);
+
+	auto it = _colorInfo.find(eventID);
+	if ( it == _colorInfo.end() ) {
+		return unknown;
+	}
+
+	const auto &info = it.value();
+
+	auto lookup = [](const NamedColors &colors, const QString &name, const QColor &fallback) {
+		for ( const auto &item : colors ) {
+			if ( item.first == name ) {
+				return item.second;
+			}
+		}
+		return fallback;
+	};
+
+	switch ( _colorMode ) {
+		case ColorMode::Magnitude:
+			if ( !info.magnitude || _colorScheme.magnitude.isEmpty() ) {
+				return unknown;
+			}
+			return _colorScheme.magnitude.colorAt(*info.magnitude, true);
+
+		case ColorMode::Age:
+			if ( _colorScheme.age.isEmpty() ) {
+				return unknown;
+			}
+			return _colorScheme.age.colorAt(static_cast<double>(Core::Time::UTC() - info.time), true);
+
+		case ColorMode::Evaluation:
+			return lookup(_colorScheme.evaluation, info.evaluation, unknown);
+
+		case ColorMode::Type:
+			if ( info.type.isEmpty() ) {
+				return _colorScheme.unsetType;
+			}
+			return lookup(_colorScheme.types, info.type, _colorScheme.otherType);
+
+		default:
+			return unknown;
+	}
+}
+// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+QColor EventLayer::modeColor(const std::string &eventID) const {
+	if ( (_colorMode == ColorMode::Depth) || !_colorInfo.contains(eventID) ) {
+		return QColor();
+	}
+
+	return colorFor(eventID);
+}
+// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+void EventLayer::applyColor(const std::string &eventID) {
+	auto it = _eventSymbols.find(eventID);
+	if ( it == _eventSymbols.end() || !it.value().origin ) {
+		return;
+	}
+
+	auto &symbol = it.value();
+
+	// Resets the colors to the depth coding
+	symbol.origin->setDepth(symbol.origin->depth());
+
+	QColor color = _colorMode == ColorMode::Depth ?
+		SCScheme.colors.originSymbol.depth.gradient.colorAt(
+			symbol.origin->depth(), SCScheme.colors.originSymbol.depth.discrete) :
+		colorFor(eventID);
+
+	if ( _colorMode != ColorMode::Depth ) {
+		symbol.origin->setColor(color);
+	}
+
+	if ( symbol.tensor ) {
+		symbol.tensor->setTColor(color);
+	}
+}
+// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+void EventLayer::applyColors() {
+	for ( auto it = _eventSymbols.begin(); it != _eventSymbols.end(); ++it ) {
+		applyColor(it.key());
+	}
+
+	// Keep the hover highlight
+	if ( !_hoverId.empty() ) {
+		auto it = _eventSymbols.find(_hoverId);
+		if ( it != _eventSymbols.end() ) {
+			it.value().origin->setFillColor(it.value().origin->color());
+			it.value().origin->setColor(QColor(33,53,81));
+		}
+	}
+}
 // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 
@@ -200,19 +683,22 @@ void EventLayer::setCurrentEvent(DataModel::Event *evt) {
 
 	if ( _currentEvent ) {
 		_currentEvent->setType(0);
-		_currentEvent->setDepth(_currentEvent->depth());
+		applyColor(_currentEventID);
 	}
 
 	if ( !evt ) {
 		_currentEvent = nullptr;
+		_currentEventID.clear();
 	}
 	else {
 		auto it = _eventSymbols.find(evt->publicID());
 		if ( it == _eventSymbols.end() ) {
 			_currentEvent = nullptr;
+			_currentEventID.clear();
 		}
 		else {
 			_currentEvent = it.value().origin;
+			_currentEventID = evt->publicID();
 		}
 	}
 
@@ -434,6 +920,8 @@ std::vector<std::string> EventLayer::eventsUnder(int x, int y) const {
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 void EventLayer::clear() {
 	_currentEvent = nullptr;
+	_currentEventID.clear();
+	_colorInfo.clear();
 	setHoverId(std::string());
 	Gui::EventLayer::clear();
 }
@@ -461,6 +949,8 @@ void EventLayer::addEvent(Event *e, bool) {
 
 		updateSymbol(_cache, canvas(), symbol, e, org.get(), fm.get());
 		_eventSymbols[e->publicID()] = symbol;
+		updateColorInfo(e, org.get());
+		applyColor(e->publicID());
 
 		// Create origin symbol and register it
 		emit updateRequested();
@@ -493,6 +983,8 @@ void EventLayer::updateEvent(Event *e) {
 		if ( _currentEvent == oldOriginSymbol ) {
 			_currentEvent = it.value().origin;
 		}
+		updateColorInfo(e, org.get());
+		applyColor(e->publicID());
 		emit updateRequested();
 	}
 }
@@ -509,9 +1001,11 @@ void EventLayer::removeEvent(Event *e) {
 	}
 	if ( it.value().origin == _currentEvent ) {
 		_currentEvent = nullptr;
+		_currentEventID.clear();
 	}
 	it.value().free();
 	_eventSymbols.erase(it);
+	_colorInfo.remove(e->publicID());
 	emit updateRequested();
 }
 // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -541,13 +1035,19 @@ void EventLayer::tick() {
 		}
 		else {
 			_currentEvent->setType(0);
-			_currentEvent->setDepth(_currentEvent->depth());
+			applyColor(_currentEventID);
 		}
 
 		emit updateRequested();
 	}
 	else if ( hasActiveDecorators )
 		emit updateRequested();
+
+	// Event ages change continuously
+	if ( (_colorMode == ColorMode::Age) && (++_ageTicks % 30 == 0) ) {
+		applyColors();
+		emit updateRequested();
+	}
 }
 // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -561,7 +1061,7 @@ void EventLayer::setHoverId(const std::string &id) {
 	if ( !_hoverId.empty() ) {
 		auto it = _eventSymbols.find(_hoverId);
 		if ( it != _eventSymbols.end() ) {
-			it.value().origin->setDepth(it.value().origin->depth());
+			applyColor(_hoverId);
 			updateRequired = true;
 		}
 	}

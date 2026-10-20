@@ -180,6 +180,16 @@ void CurrentEventLayer::setEvent(Event *evt) {
 
 
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+void CurrentEventLayer::setColorProvider(std::function<QColor (const std::string &)> provider) {
+	_colorProvider = std::move(provider);
+	emit updateRequested();
+}
+// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 void CurrentEventLayer::tick() {
 	if ( !_isValid || !_originTime || !isVisible() ) {
 		return;
@@ -254,9 +264,14 @@ void CurrentEventLayer::draw(const Map::Canvas *canvas, QPainter &p) {
 	p.fillRect(headerRect, QColor(0xE5,0xE5,0xE5,235));
 	p.fillRect(bodyRect, QColor(255,255,255,235));
 
-	// The tile uses the same depth color as the event symbols on the map
+	// The tile uses the same color as the event symbol on the map
 	QColor magColor(0x7A,0xD4,0xE2);
-	if ( _depth ) {
+	QColor modeColor = _colorProvider ? _colorProvider(_eventID) : QColor();
+	if ( modeColor.isValid() ) {
+		magColor = modeColor;
+		magColor.setAlpha(255);
+	}
+	else if ( _depth ) {
 		magColor = SCScheme.colors.originSymbol.depth.gradient.colorAt(
 			*_depth, SCScheme.colors.originSymbol.depth.discrete
 		);

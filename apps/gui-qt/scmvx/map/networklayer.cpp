@@ -335,7 +335,7 @@ class NetworkStatusLegend : public Gui::Map::Legend {
 				if ( row.color.isValid() ) {
 					QRect swatch(x + (row.bold ? 0 : fontHeight / 4), y + fontHeight / 4,
 					             fontHeight / 2, fontHeight / 2);
-					painter.fillRect(swatch, row.color);
+					painter.setBrush(row.color);
 					painter.setPen(QColor(0, 0, 0, 128));
 					painter.drawRect(swatch);
 				}
